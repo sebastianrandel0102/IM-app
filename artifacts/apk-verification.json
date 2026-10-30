@@ -1,0 +1,14 @@
+{
+  "apk": "app-release.apk",
+  "bytes": 85278539,
+  "sha256": "ad78daf79e7a0dc7a6389a715f6bd05d043b03693d050a2878e6df040ca98714",
+  "checks": {
+    "arm64_release_code": true,
+    "both_actual_uids_packaged": true,
+    "correct_firebase_project_packaged": true,
+    "emulator_project_absent": true,
+    "bundled_font_present": true,
+    "original_sound_present": true,
+    "no_service_account_file": true
+  }
+}

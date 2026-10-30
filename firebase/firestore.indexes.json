@@ -1,0 +1,10 @@
+{
+  "indexes": [
+    {"collectionGroup":"moments","queryScope":"COLLECTION","fields":[{"fieldPath":"receiverUid","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
+    {"collectionGroup":"moments","queryScope":"COLLECTION","fields":[{"fieldPath":"senderUid","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]},
+    {"collectionGroup":"memories","queryScope":"COLLECTION","fields":[{"fieldPath":"savedByUid","order":"ASCENDING"},{"fieldPath":"createdAt","order":"DESCENDING"}]}
+  ],
+  "fieldOverrides": [
+    {"collectionGroup":"payloads","fieldPath":"personalMessage","indexes":[]}
+  ]
+}

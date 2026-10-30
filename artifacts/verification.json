@@ -1,0 +1,22 @@
+﻿{
+    "verifiedDate":  "2026-10-30",
+    "timezone":  "Asia/Manila",
+    "projectId":  "bear-with-me-f60a3",
+    "billingEnabled":  false,
+    "firestoreEdition":  "STANDARD",
+    "firestoreLocation":  "asia-southeast1",
+    "authenticationSubtype":  "FIREBASE_AUTH",
+    "emailPasswordEnabled":  true,
+    "authorizedAccountCount":  2,
+    "deployedRulesContainBothUids":  true,
+    "rulesetName":  "projects/bear-with-me-f60a3/rulesets/e89c4816-f765-4723-a027-4fd6e8fb5573",
+    "flutterTestsPassed":  9,
+    "firestoreRulesTestsPassed":  34,
+    "twoClientEmulatorIntegration":  "passed",
+    "physicalAndroidDevicesAttached":  0,
+    "riveAssets":  "pending external authoring; Flutter development renderer bundled",
+    "androidReleaseBuild":  "passed",
+    "apkSignatureV2Verified":  true,
+    "apkSha256":  "742c6b4b0fcfbd5e030a2301f20c2605174d03f318768e092d9a01c7cc9b50e6",
+    "apkBytes":  85016323
+}

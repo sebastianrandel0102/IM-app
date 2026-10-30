@@ -1,0 +1,3 @@
+heart.wav is an original synthesized sound created for Bear With Me.
+The project owner may use, modify, and distribute it with this application.
+Generate it again with python scripts/generate_audio.py.

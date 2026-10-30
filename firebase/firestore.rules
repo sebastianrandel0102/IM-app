@@ -1,0 +1,186 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Replace only these two placeholders after creating both Auth accounts.
+    // Membership is never derived from a client-writable profile.
+    function memberA() { return 'erLI28QIeZg2hZC1bIUsVkjeAP92'; }
+    function memberB() { return 'zOUm5hxyEwhfXBEWYOGrlPMZ6ff1'; }
+    function signed() { return request.auth != null; }
+    function allowed() { return signed() && request.auth.uid in [memberA(), memberB()] && memberA() != memberB(); }
+    function other(uid) { return uid == memberA() ? memberB() : memberA(); }
+    function twoMembers(members) { return members is list && members.size() == 2 && members.toSet() == [memberA(), memberB()].toSet(); }
+    function pairPath() { return /databases/$(database)/documents/privatePair/main; }
+    function invitationPath(id) { return /databases/$(database)/documents/pairInvitations/$(id); }
+    function momentPath(cid, id) { return /databases/$(database)/documents/couples/$(cid)/moments/$(id); }
+    function payloadPath(cid, id) { return /databases/$(database)/documents/couples/$(cid)/payloads/$(id); }
+    function active(cid) {
+      return allowed() && get(pairPath()).data.status == 'active'
+        && get(pairPath()).data.invitationId == cid;
+    }
+    function afterActive(cid) {
+      return allowed() && getAfter(pairPath()).data.status == 'active' && getAfter(pairPath()).data.invitationId == cid;
+    }
+    function creatorBear() { return get(pairPath()).data.creatorBear; }
+    function bearFor(uid) { return uid == get(pairPath()).data.creatorUid ? creatorBear() : (creatorBear() == 'brown' ? 'white' : 'brown'); }
+    function validProfile(d) {
+      return d.keys().hasAll(['displayName','accessory','createdAt']) && d.keys().hasOnly(['displayName','accessory','createdAt'])
+        && d.displayName is string && d.displayName.size() >= 1 && d.displayName.size() <= 40
+        && d.accessory in ['none','bow','scarf','flower'] && d.createdAt is timestamp;
+    }
+    match /users/{uid} {
+      // Self-only bootstrap lets the two owners register before UIDs are known.
+      // An unrelated registered account gains no access to pair data.
+      allow get: if signed() && (request.auth.uid == uid || (allowed() && uid == other(request.auth.uid) && get(pairPath()).data.status == 'active'));
+      allow list: if false;
+      allow create: if signed() && request.auth.uid == uid && validProfile(request.resource.data) && request.resource.data.createdAt == request.time;
+      allow update: if signed() && request.auth.uid == uid && validProfile(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','accessory']);
+      allow delete: if signed() && request.auth.uid == uid && (!allowed() || !exists(pairPath()) || get(pairPath()).data.status == 'revoked');
+    }
+    function validInvitation(d) {
+      return d.keys().hasAll(['creatorUid','intendedReceiverUid','createdAt','expiresAt','status'])
+        && d.keys().hasOnly(['creatorUid','intendedReceiverUid','createdAt','expiresAt','status'])
+        && d.creatorUid == request.auth.uid && d.intendedReceiverUid == other(request.auth.uid)
+        && d.createdAt == request.time && d.expiresAt is timestamp
+        && d.expiresAt > request.time && d.expiresAt <= request.time + duration.value(24,'h') && d.status == 'pending';
+    }
+    match /pairInvitations/{id} {
+      allow get: if allowed();
+      allow list: if false;
+      allow create: if allowed() && id.matches('^[a-f0-9]{64}$') && validInvitation(request.resource.data)
+        && getAfter(pairPath()).data.invitationId == id && getAfter(pairPath()).data.status == 'pending';
+      allow update: if allowed() && request.auth.uid == resource.data.intendedReceiverUid
+        && resource.data.status == 'pending' && resource.data.expiresAt > request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && request.resource.data.status == 'accepted'
+        && get(pairPath()).data.invitationId == id && get(pairPath()).data.status == 'pending'
+        && getAfter(pairPath()).data.status == 'confirming';
+      allow delete: if false;
+    }
+    function freshPair(d) {
+      let inv = getAfter(invitationPath(d.invitationId)).data;
+      return d.keys().hasAll(['memberUids','creatorUid','receiverUid','creatorBear','invitationId','status','approvedBy','createdAt'])
+        && d.keys().hasOnly(['memberUids','creatorUid','receiverUid','creatorBear','invitationId','status','approvedBy','createdAt'])
+        && twoMembers(d.memberUids) && d.creatorUid == request.auth.uid && d.receiverUid == other(request.auth.uid)
+        && d.creatorBear in ['brown','white'] && d.invitationId is string && d.invitationId.matches('^[a-f0-9]{64}$')
+        && d.status == 'pending' && d.approvedBy == [] && d.createdAt == request.time
+        && inv.creatorUid == request.auth.uid && inv.intendedReceiverUid == d.receiverUid && inv.status == 'pending'
+        && inv.createdAt == request.time;
+    }
+    function acceptingPair() {
+      return resource.data.status == 'pending' && request.auth.uid == resource.data.receiverUid
+        && request.resource.data.status == 'confirming'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+        && get(invitationPath(resource.data.invitationId)).data.status == 'pending'
+        && get(invitationPath(resource.data.invitationId)).data.expiresAt > request.time
+        && getAfter(invitationPath(resource.data.invitationId)).data.status == 'accepted';
+    }
+    function confirmingPair() {
+      let approvals = request.resource.data.approvedBy;
+      return resource.data.status == 'confirming' && !(request.auth.uid in resource.data.approvedBy)
+        && approvals == resource.data.approvedBy.concat([request.auth.uid])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['approvedBy','status'])
+        && request.resource.data.status == (approvals.size() == 2 ? 'active' : 'confirming')
+        && get(invitationPath(resource.data.invitationId)).data.status == 'accepted'
+        && get(invitationPath(resource.data.invitationId)).data.expiresAt > request.time
+        && (approvals.size() != 2 || getAfter(/databases/$(database)/documents/couples/$(resource.data.invitationId)).data.createdAt == request.time);
+    }
+    match /privatePair/main {
+      allow get: if allowed();
+      allow list: if false;
+      allow create: if allowed() && freshPair(request.resource.data);
+      allow update: if allowed() && (
+        (resource.data.status == 'revoked' && request.resource.data.invitationId != resource.data.invitationId && freshPair(request.resource.data))
+        || acceptingPair() || confirmingPair()
+        || (resource.data.status != 'revoked' && request.resource.data.status == 'revoked'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])));
+      allow delete: if false;
+    }
+    function validTheme(t) { return t in ['cozyRoom','flowerGarden','moonlitNight','rainyWindow','starryBedroom','pastelPinkRoom']; }
+    match /couples/{cid} {
+      allow get: if active(cid);
+      allow list: if false;
+      allow create: if afterActive(cid) && get(pairPath()).data.status == 'confirming'
+        && request.resource.data.keys().hasAll(['memberUids','themeId','createdAt'])
+        && request.resource.data.keys().hasOnly(['memberUids','themeId','createdAt'])
+        && twoMembers(request.resource.data.memberUids) && validTheme(request.resource.data.themeId) && request.resource.data.createdAt == request.time;
+      allow update: if active(cid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['themeId']) && validTheme(request.resource.data.themeId);
+      allow delete: if false;
+      function validMoment(d) {
+        return d.keys().hasAll(['senderUid','receiverUid','createdAt','openedAt','playedAt','genericLabel'])
+          && d.keys().hasOnly(['senderUid','receiverUid','createdAt','openedAt','playedAt','genericLabel'])
+          && d.senderUid == request.auth.uid && d.receiverUid == other(request.auth.uid)
+          && d.createdAt == request.time && d.openedAt == null && d.playedAt == null && d.genericLabel == 'A little surprise arrived.';
+      }
+      match /moments/{id} {
+        allow get: if active(cid);
+        allow list: if active(cid) && request.query.limit != null && request.query.limit <= 30;
+        allow create: if active(cid) && validMoment(request.resource.data)
+          && getAfter(payloadPath(cid,id)).data.senderUid == request.auth.uid
+          && getAfter(payloadPath(cid,id)).data.receiverUid == other(request.auth.uid);
+        allow update: if active(cid) && request.auth.uid == resource.data.receiverUid && (
+          (resource.data.openedAt == null && request.resource.data.openedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['openedAt']))
+          || (resource.data.openedAt != null && resource.data.playedAt == null && request.resource.data.playedAt == request.time
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playedAt'])));
+        allow delete: if false;
+      }
+      function validPayload(d) {
+        return d.keys().hasAll(['senderUid','receiverUid','interactionType','animationVariant','personalMessage','senderBear','receiverBear','assetVersion'])
+          && d.keys().hasOnly(['senderUid','receiverUid','interactionType','animationVariant','personalMessage','senderBear','receiverBear','assetVersion'])
+          && d.senderUid == request.auth.uid && d.receiverUid == other(request.auth.uid)
+          && d.interactionType in ['warmHug','cheekKiss','foreheadKiss','holdingHands','headPat','noseBoop','cuddleTime','goodnightKiss','sleepTogether','blowingKisses','flowerSurprise','comfortHug','wipeAwayTears','happyDance','piggybackRide','playfulTickle','iMissYou','heartDelivery','goodMorning','surpriseBox','highFive','spinningHug','shyConfession','underOneUmbrella']
+          && d.animationVariant in ['gentle','shy','playful'] && d.personalMessage is string && d.personalMessage.size() <= 500
+          && d.senderBear == bearFor(request.auth.uid) && d.receiverBear == bearFor(other(request.auth.uid)) && d.assetVersion == 1;
+      }
+      match /payloads/{id} {
+        allow get: if active(cid) && (resource.data.senderUid == request.auth.uid
+          || (resource.data.receiverUid == request.auth.uid && get(momentPath(cid,id)).data.openedAt != null));
+        allow list: if false;
+        allow create: if active(cid) && validPayload(request.resource.data)
+          && getAfter(momentPath(cid,id)).data.senderUid == request.auth.uid
+          && getAfter(momentPath(cid,id)).data.receiverUid == other(request.auth.uid)
+          && getAfter(momentPath(cid,id)).data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+      function eligibleMemory(mid) {
+        let m = get(momentPath(cid,mid)).data;
+        return m.senderUid == request.auth.uid || (m.receiverUid == request.auth.uid && m.openedAt != null);
+      }
+      function validMemory(d) {
+        return d.keys().hasAll(['momentId','savedByUid','caption','favorite','createdAt'])
+          && d.keys().hasOnly(['momentId','savedByUid','caption','favorite','createdAt'])
+          && d.momentId is string && d.savedByUid == request.auth.uid
+          && d.caption is string && d.caption.size() <= 120 && d.favorite is bool && d.createdAt is timestamp;
+      }
+      match /memories/{id} {
+        allow get: if active(cid) && resource.data.savedByUid == request.auth.uid;
+        allow list: if active(cid) && resource.data.savedByUid == request.auth.uid && request.query.limit != null && request.query.limit <= 30;
+        allow create: if active(cid) && validMemory(request.resource.data) && request.resource.data.createdAt == request.time
+          && id == request.auth.uid + '_' + request.resource.data.momentId && eligibleMemory(request.resource.data.momentId);
+        allow update: if active(cid) && resource.data.savedByUid == request.auth.uid && validMemory(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption','favorite']);
+        allow delete: if active(cid) && resource.data.savedByUid == request.auth.uid;
+      }
+      match /liveSessions/{id} {
+        allow get: if active(cid);
+        allow list: if active(cid) && request.query.limit != null && request.query.limit <= 1;
+        allow create: if active(cid) && request.resource.data.keys().hasAll(['initiatorUid','status','currentAction','eventSequence','updatedAt'])
+          && request.resource.data.keys().hasOnly(['initiatorUid','status','currentAction','eventSequence','updatedAt'])
+          && request.resource.data.initiatorUid == request.auth.uid && request.resource.data.status == 'invited'
+          && request.resource.data.currentAction == 'wave' && request.resource.data.eventSequence == 0 && request.resource.data.updatedAt == request.time;
+        allow update: if active(cid) && request.resource.data.updatedAt == request.time && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','updatedAt'])
+            && ((resource.data.status == 'invited' && request.auth.uid != resource.data.initiatorUid && request.resource.data.status == 'active')
+              || (resource.data.status in ['invited','active'] && request.resource.data.status == 'ended')))
+          || (resource.data.status == 'active' && request.resource.data.status == 'active'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentAction','eventSequence','updatedAt'])
+            && request.resource.data.currentAction in ['wave','holdingHands','warmHug','happyDance','cuddleTime']
+            && request.resource.data.eventSequence == resource.data.eventSequence + 1
+            && request.time >= resource.data.updatedAt + duration.value(1,'s')));
+        allow delete: if false;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,828 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import '../../../app/theme/app_theme.dart';
+import '../../affection/domain/affection_type.dart';
+import 'rive_bear_scene.dart';
+
+/// Original vector interpretation of the supplied references. This is the
+/// development Flutter renderer; it is not an exported Rive rig.
+class BearScene extends StatefulWidget {
+  const BearScene({
+    super.key,
+    this.action,
+    this.sender = BearCharacter.brown,
+    this.theme = SceneTheme.cozyRoom,
+    this.reducedMotion = false,
+    this.holding = false,
+    this.taps = 0,
+    this.walk = 0,
+    this.accessory = 'none',
+    this.variant = 'gentle',
+    this.stopped = false,
+  });
+  final AffectionType? action;
+  final BearCharacter sender;
+  final SceneTheme theme;
+  final bool reducedMotion, holding, stopped;
+  final int taps;
+  final double walk;
+  final String accessory, variant;
+  @override
+  State<BearScene> createState() => _BearSceneState();
+}
+
+class _BearSceneState extends State<BearScene>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: Duration(
+      seconds: widget.variant == 'shy'
+          ? 10
+          : widget.variant == 'playful'
+          ? 6
+          : 8,
+    ),
+  );
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.reducedMotion) _clock.repeat();
+  }
+
+  @override
+  void didUpdateWidget(BearScene oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.variant != widget.variant) {
+      _clock.duration = Duration(
+        seconds: widget.variant == 'shy'
+            ? 10
+            : widget.variant == 'playful'
+            ? 6
+            : 8,
+      );
+      _clock.reset();
+    }
+    if (widget.reducedMotion || widget.stopped) {
+      _clock.stop();
+    } else if (!_clock.isAnimating) {
+      _clock.repeat();
+    }
+    if (oldWidget.action != widget.action) {
+      _clock.forward(from: 0).then((_) {
+        if (mounted && !widget.reducedMotion && !widget.stopped) {
+          _clock.repeat();
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final developmentScene = Semantics(
+      label: widget.action == null
+          ? 'The caramel bear and white bear, together in a cozy little world'
+          : '${widget.sender.name} bear and ${widget.sender.other.name} bear: ${widget.action!.title}',
+      image: true,
+      child: RepaintBoundary(
+        child: AnimatedBuilder(
+          animation: _clock,
+          builder: (context, _) => CustomPaint(
+            painter: BearScenePainter(
+              t: widget.reducedMotion ? .5 : _clock.value,
+              action: widget.action,
+              sender: widget.sender,
+              theme: widget.theme,
+              holding: widget.holding,
+              taps: widget.taps,
+              walk: widget.walk,
+              reduced: widget.reducedMotion,
+              accessory: widget.accessory,
+              variant: widget.variant,
+              stopped: widget.stopped,
+            ),
+            size: Size.infinite,
+          ),
+        ),
+      ),
+    );
+    if (const bool.fromEnvironment('USE_AUTHORED_RIVE')) {
+      return RiveBearScene(
+        fallback: developmentScene,
+        action: widget.action,
+        sender: widget.sender,
+        holding: widget.holding,
+        taps: widget.taps,
+        reducedMotion: widget.reducedMotion,
+        variant: widget.variant,
+      );
+    }
+    return developmentScene;
+  }
+}
+
+class BearScenePainter extends CustomPainter {
+  BearScenePainter({
+    required this.t,
+    required this.action,
+    required this.sender,
+    required this.theme,
+    required this.holding,
+    required this.taps,
+    required this.walk,
+    required this.reduced,
+    required this.accessory,
+    required this.variant,
+    required this.stopped,
+  });
+  final double t, walk;
+  final AffectionType? action;
+  final BearCharacter sender;
+  final SceneTheme theme;
+  final bool holding, reduced, stopped;
+  final int taps;
+  final String accessory, variant;
+  static const chocolate = Palette.outline;
+  Paint fill(Color c) => Paint()..color = c;
+  Paint stroke(Color c, [double width = 2.6]) => Paint()
+    ..color = c
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  void line(Canvas c, Offset a, Offset b, Color color, [double w = 2]) =>
+      c.drawLine(a, b, stroke(color, w));
+  void shape(Canvas c, Path p, Color color, [double w = 2.6]) {
+    c.drawPath(p, fill(color));
+    c.drawPath(p, stroke(chocolate, w));
+  }
+
+  void oval(Canvas c, Rect rect, Color color, {bool outlined = false}) {
+    c.drawOval(rect, fill(color));
+    if (outlined) c.drawOval(rect, stroke(chocolate));
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.save();
+    final scale = math.min(size.width / 400, size.height / 340);
+    canvas.translate(
+      (size.width - 400 * scale) / 2,
+      (size.height - 340 * scale) / 2,
+    );
+    canvas.scale(scale);
+    final night =
+        [SceneTheme.moonlitNight, SceneTheme.starryBedroom].contains(theme) ||
+        action?.scene == 'sleep' ||
+        action?.scene == 'moon';
+    final dim = night && taps.isOdd;
+    final bg = night
+        ? (dim ? const Color(0xFF554666) : const Color(0xFFE2D7EC))
+        : theme == SceneTheme.pastelPinkRoom
+        ? const Color(0xFFF6DFDF)
+        : const Color(0xFFF2E5D9);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(0, 0, 400, 340),
+        const Radius.circular(28),
+      ),
+      fill(bg),
+    );
+    _room(canvas, night, dim);
+    final contact = action != null && !stopped
+        ? (holding
+              ? 1.0
+              : Curves.easeInOut.transform(
+                  (math.sin(t * math.pi * 2 - 1) * .5 + .6).clamp(0.0, 1.0),
+                ))
+        : 0.0;
+    final kind = action?.scene;
+    final sleeping = kind == 'sleep' && !stopped;
+    final hugging = kind == 'hug' || kind == 'cuddle' || kind == 'tickle';
+    final dancing = kind == 'dance' && !stopped;
+    final sway = reduced || stopped
+        ? 0.0
+        : math.sin(t * math.pi * 4) *
+              (dancing
+                  ? 7
+                  : variant == 'playful'
+                  ? 4
+                  : variant == 'shy'
+                  ? .8
+                  : 1.8);
+    final close = hugging
+        ? 27 * contact
+        : kind == 'kiss' || kind == 'boop' || kind == 'pat' || kind == 'tear'
+        ? 23 * contact
+        : 0.0;
+    double leftX = 137 + close + walk.clamp(-25, 25);
+    double rightX = 263 - close + walk.clamp(-25, 25);
+    if (kind == 'rain' && taps > 0) {
+      leftX += 10;
+      rightX -= 10;
+    }
+    if (action == AffectionType.piggybackRide) {
+      rightX = leftX + 35;
+    }
+    canvas.drawOval(
+      const Rect.fromLTWH(62, 267, 276, 44),
+      fill(night ? const Color(0xFFB9A2BB) : const Color(0xFFE7CDC0)),
+    );
+    canvas.drawOval(
+      const Rect.fromLTWH(71, 270, 258, 35),
+      stroke(night ? const Color(0xFFCCB9CF) : const Color(0xFFF2DED0), 1),
+    );
+    if (kind == 'cuddle' || sleeping) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(80, 219, 240, 69),
+          const Radius.circular(18),
+        ),
+        fill(const Color(0xFFC3B3CD)),
+      );
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(76, 241, 248, 45),
+          const Radius.circular(15),
+        ),
+        fill(const Color(0xFFD3C4DB)),
+      );
+    }
+    final leftBrown = sender == BearCharacter.brown;
+    final blink = reduced ? false : t > .83 && t < .86 || t > .18 && t < .20;
+    final closed =
+        blink ||
+        sleeping ||
+        (hugging && contact > .65) ||
+        kind == 'kiss' && contact > .7;
+    final offsetY = sleeping ? 16.0 : 0.0;
+    _bear(
+      canvas,
+      leftX,
+      275 + sway + offsetY,
+      leftBrown ? BearCharacter.brown : BearCharacter.white,
+      right: true,
+      closed: closed,
+      blush: action != null
+          ? (variant == 'shy' ? .7 + contact * .3 : contact)
+          : .3,
+      lean:
+          (kind == 'kiss' && taps == 0 ? contact * .16 : 0) +
+          (dancing ? sway * .02 : 0),
+      arms:
+          contact *
+          (hugging
+              ? 1
+              : ['hands', 'pat', 'boop', 'kiss', 'tear'].contains(kind)
+              ? .8
+              : .15),
+      accessory: accessory,
+      sad: kind == 'tear' && taps == 0,
+    );
+    _bear(
+      canvas,
+      rightX,
+      275 - sway + offsetY - (action == AffectionType.piggybackRide ? 55 : 0),
+      leftBrown ? BearCharacter.white : BearCharacter.brown,
+      right: false,
+      closed: closed,
+      blush: .4 + contact * .6,
+      lean: kind == 'kiss' && taps > 0
+          ? -contact * .16
+          : dancing
+          ? -sway * .02
+          : 0,
+      arms:
+          contact *
+          (hugging
+              ? 1
+              : kind == 'hands'
+              ? .8
+              : .1),
+      accessory: 'none',
+      sad: kind == 'tear' && taps == 0,
+    );
+    if (hugging && contact > .55) {
+      final armColor = leftBrown ? Palette.caramel : Colors.white;
+      final arm = Path()
+        ..moveTo(leftX + 17, 215)
+        ..quadraticBezierTo(rightX - 3, 245, rightX + 20, 219)
+        ..quadraticBezierTo(rightX + 27, 208, rightX + 17, 208)
+        ..quadraticBezierTo(rightX, 222, leftX + 21, 202);
+      shape(canvas, arm, armColor, 2.3);
+    }
+    if ((kind == 'cuddle' && taps.isOdd) || sleeping) {
+      final blanket = Path()
+        ..moveTo(93, 234)
+        ..quadraticBezierTo(190, 213, 306, 236)
+        ..lineTo(315, 280)
+        ..quadraticBezierTo(201, 292, 85, 278)
+        ..close();
+      shape(canvas, blanket, Palette.sage, 1.8);
+      for (var i = 0; i < 6; i++) {
+        line(
+          canvas,
+          Offset(106 + i * 36.0, 244),
+          Offset(101 + i * 36.0, 279),
+          const Color(0xFF93B39A),
+          1,
+        );
+      }
+    }
+    if (kind == 'flower') _flower(canvas, 214, 217, taps > 0 ? 1.4 : 1);
+    if (kind == 'gift') _gift(canvas, 200, 244, taps > 0);
+    if (kind == 'heart') {
+      _heart(canvas, 202, 211, taps > 0 ? 26 : 20, Palette.pink);
+    }
+    if (kind == 'rain') _umbrella(canvas);
+    if (kind == 'tear' && taps == 0) {
+      oval(
+        canvas,
+        Rect.fromCenter(center: Offset(rightX + 27, 193), width: 6, height: 11),
+        const Color(0xFF9AC8D9),
+      );
+    }
+    if (kind == 'kiss' ||
+        kind == 'hug' ||
+        kind == 'hands' ||
+        action == null ||
+        kind == 'dance') {
+      final float = reduced ? 0.0 : math.sin(t * math.pi * 2) * 5;
+      _heart(
+        canvas,
+        203,
+        108 + float,
+        action == null ? 10 : 13 + contact * 4,
+        Palette.pink,
+      );
+      if (!reduced && action != null) {
+        _heart(
+          canvas,
+          176 + math.sin(t * 6) * 4,
+          88 - contact * 12,
+          4,
+          const Color(0xFFE5A3B5),
+        );
+        _heart(canvas, 236, 103 - contact * 8, 5, const Color(0xFFE5A3B5));
+      }
+    }
+    if (sleeping) {
+      _text(
+        canvas,
+        'z z',
+        const Offset(284, 127),
+        17,
+        dim ? Palette.blush : Palette.muted,
+      );
+    }
+    if (action == AffectionType.noseBoop && taps >= 3) {
+      _text(canvas, 'boop!', const Offset(174, 91), 14, Palette.rose);
+    }
+    if (kind == 'sun' && taps > 0) {
+      canvas.drawCircle(
+        const Offset(308, 66),
+        18,
+        fill(const Color(0xFFFFD9A0)),
+      );
+    }
+    if (kind == 'tickle' && !stopped && taps > 0) {
+      _text(canvas, 'hehe ♡', const Offset(166, 92), 15, Palette.rose);
+    }
+    canvas.restore();
+  }
+
+  void _room(Canvas c, bool night, bool dim) {
+    final garden = theme == SceneTheme.flowerGarden;
+    final sky = night ? const Color(0xFF877A9D) : const Color(0xFFD5CFDE);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(144, 23, 112, 107),
+        const Radius.circular(53),
+      ),
+      fill(const Color(0xFFE7D7CB)),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(151, 30, 98, 94),
+        const Radius.circular(47),
+      ),
+      fill(sky),
+    );
+    if (night) {
+      c.drawCircle(const Offset(219, 55), 11, fill(const Color(0xFFFFEAC9)));
+      c.drawCircle(const Offset(224, 51), 10, fill(sky));
+      for (final p in [
+        const Offset(173, 58),
+        const Offset(194, 43),
+        const Offset(229, 90),
+        const Offset(176, 91),
+      ]) {
+        _spark(c, p, 2.5, const Color(0xFFFCE9D3));
+      }
+    } else {
+      oval(c, const Rect.fromLTWH(167, 65, 34, 12), const Color(0xFFECE7EF));
+      oval(c, const Rect.fromLTWH(209, 47, 27, 10), const Color(0xFFECE7EF));
+      c.drawCircle(const Offset(225, 83), 9, fill(const Color(0xFFF1DBC2)));
+    }
+    line(
+      c,
+      const Offset(200, 29),
+      const Offset(200, 124),
+      const Color(0xFFE7D7CB),
+      5,
+    );
+    line(
+      c,
+      const Offset(151, 83),
+      const Offset(248, 83),
+      const Color(0xFFE7D7CB),
+      5,
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(139, 122, 122, 7),
+        const Radius.circular(3),
+      ),
+      fill(const Color(0xFFCFB7A7)),
+    );
+    line(
+      c,
+      const Offset(0, 252),
+      const Offset(66, 252),
+      const Color(0xFFE2D0C2),
+      1,
+    );
+    line(
+      c,
+      const Offset(333, 252),
+      const Offset(400, 252),
+      const Color(0xFFE2D0C2),
+      1,
+    );
+    // A little plant and two books keep the room quiet and personal.
+    line(
+      c,
+      const Offset(45, 204),
+      const Offset(45, 154),
+      const Color(0xFF8B9F7E),
+      2,
+    );
+    for (var i = 0; i < 3; i++) {
+      c.save();
+      c.translate(44, 164 + i * 13.0);
+      c.rotate(i.isEven ? -.7 : .7);
+      oval(c, const Rect.fromLTWH(-17, -6, 19, 10), const Color(0xFFB0C0A0));
+      c.restore();
+    }
+    final pot = Path()
+      ..moveTo(30, 200)
+      ..lineTo(60, 200)
+      ..lineTo(55, 224)
+      ..quadraticBezierTo(45, 229, 35, 224)
+      ..close();
+    c.drawPath(pot, fill(const Color(0xFFD8AA91)));
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(338, 191, 34, 6),
+        const Radius.circular(2),
+      ),
+      fill(const Color(0xFFC6AFC7)),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(343, 184, 27, 6),
+        const Radius.circular(2),
+      ),
+      fill(const Color(0xFFE7C0B1)),
+    );
+    line(
+      c,
+      const Offset(334, 200),
+      const Offset(377, 200),
+      const Color(0xFFC8AF9E),
+      4,
+    );
+    if (garden) {
+      _flower(c, 46, 260, .8);
+      _flower(c, 355, 253, .7);
+    }
+    if (theme == SceneTheme.rainyWindow || action?.scene == 'rain') {
+      for (var i = 0; i < 8; i++) {
+        final y = 40 + ((i * 17 + t * 90) % 75);
+        line(
+          c,
+          Offset(164 + i * 10.0, y),
+          Offset(162 + i * 10.0, y + 6),
+          const Color(0xFFB9ACC8),
+          1.5,
+        );
+      }
+    }
+    if (action?.scene == 'sleep') {
+      line(
+        c,
+        const Offset(348, 213),
+        const Offset(348, 246),
+        const Color(0xFF9F857D),
+        3,
+      );
+      final lamp = Path()
+        ..moveTo(336, 209)
+        ..lineTo(341, 190)
+        ..lineTo(355, 190)
+        ..lineTo(361, 209)
+        ..close();
+      c.drawPath(
+        lamp,
+        fill(dim ? const Color(0xFF9986A3) : const Color(0xFFF5D8AE)),
+      );
+    }
+  }
+
+  void _bear(
+    Canvas c,
+    double x,
+    double ground,
+    BearCharacter bear, {
+    required bool right,
+    required bool closed,
+    required double blush,
+    required double lean,
+    required double arms,
+    required String accessory,
+    required bool sad,
+  }) {
+    c.save();
+    c.translate(x, ground);
+    final fur = bear == BearCharacter.brown
+        ? Palette.caramel
+        : const Color(0xFFFFFDFC);
+    final inner = bear == BearCharacter.brown
+        ? const Color(0xFFECC28B)
+        : const Color(0xFFF4B5C4);
+    oval(c, const Rect.fromLTWH(-35, -4, 73, 8), const Color(0x27352320));
+    c.rotate(lean);
+    // Separate legs, body, arms, ears and face layers mirror the Rive contract.
+    shape(
+      c,
+      Path()
+        ..moveTo(-24, -43)
+        ..lineTo(-24, -4)
+        ..quadraticBezierTo(-14, 1, -4, -4)
+        ..lineTo(-3, -28)
+        ..lineTo(6, -28)
+        ..lineTo(8, -4)
+        ..quadraticBezierTo(20, 1, 28, -4)
+        ..lineTo(27, -45)
+        ..close(),
+      fur,
+    );
+    shape(
+      c,
+      Path()
+        ..moveTo(-22, -91)
+        ..quadraticBezierTo(-37, -64, -29, -26)
+        ..quadraticBezierTo(0, -13, 30, -27)
+        ..quadraticBezierTo(37, -64, 19, -92)
+        ..close(),
+      fur,
+    );
+    for (final side in [-1, 1]) {
+      final raised = (right && side == 1 || !right && side == -1)
+          ? arms
+          : arms * .25;
+      c.save();
+      c.translate(side * 23.0, -82);
+      c.rotate(-side * raised * 1.5);
+      shape(
+        c,
+        Path()
+          ..moveTo(-7, 0)
+          ..quadraticBezierTo(-17, 22, -10, 43)
+          ..quadraticBezierTo(-3, 51, 6, 42)
+          ..quadraticBezierTo(12, 20, 7, 0),
+        fur,
+        2.3,
+      );
+      c.restore();
+    }
+    c.save();
+    c.translate(0, -113);
+    oval(c, const Rect.fromLTWH(-58, -62, 43, 48), fur, outlined: true);
+    oval(c, const Rect.fromLTWH(21, -62, 43, 48), fur, outlined: true);
+    oval(c, const Rect.fromLTWH(-48, -52, 23, 28), inner);
+    oval(c, const Rect.fromLTWH(31, -52, 23, 28), inner);
+    final head = Path()
+      ..moveTo(-54, -28)
+      ..cubicTo(-41, -65, 37, -67, 56, -27)
+      ..cubicTo(73, 0, 67, 43, 39, 51)
+      ..quadraticBezierTo(0, 66, -37, 49)
+      ..cubicTo(-66, 45, -68, 1, -54, -28)
+      ..close();
+    shape(c, head, fur, 3.1);
+    final faceX = right ? 9.0 : -9.0;
+    final cheekAlpha = bear == BearCharacter.white
+        ? .5 + blush * .3
+        : blush * .5;
+    oval(
+      c,
+      Rect.fromCenter(center: Offset(faceX - 31, 28), width: 21, height: 18),
+      Palette.pink.withValues(alpha: cheekAlpha.clamp(0, 1)),
+    );
+    oval(
+      c,
+      Rect.fromCenter(center: Offset(faceX + 31, 28), width: 21, height: 18),
+      Palette.pink.withValues(alpha: cheekAlpha.clamp(0, 1)),
+    );
+    for (final eyeX in [faceX - 19, faceX + 19]) {
+      if (closed) {
+        c.drawPath(
+          Path()
+            ..moveTo(eyeX - 4, 14)
+            ..quadraticBezierTo(eyeX, 18, eyeX + 4, 14),
+          stroke(chocolate, 2.4),
+        );
+      } else {
+        oval(
+          c,
+          Rect.fromCenter(center: Offset(eyeX, 16), width: 6, height: 9),
+          chocolate,
+        );
+      }
+    }
+    if (bear == BearCharacter.brown) {
+      oval(
+        c,
+        Rect.fromCenter(center: Offset(faceX, 28), width: 21, height: 27),
+        const Color(0xFFF2D49C),
+      );
+    }
+    final nose = Path()
+      ..moveTo(faceX - 4, 23)
+      ..quadraticBezierTo(faceX, 21, faceX + 4, 23)
+      ..lineTo(faceX, 27)
+      ..close();
+    c.drawPath(nose, fill(chocolate));
+    line(c, Offset(faceX, 26), Offset(faceX, 31), chocolate, 2);
+    c.drawPath(
+      Path()
+        ..moveTo(faceX - 7, sad ? 37 : 32)
+        ..quadraticBezierTo(faceX - 4, sad ? 31 : 39, faceX, 32)
+        ..quadraticBezierTo(faceX + 4, sad ? 31 : 39, faceX + 8, sad ? 37 : 32),
+      stroke(chocolate, 1.9),
+    );
+    if (accessory == 'bow') {
+      shape(
+        c,
+        Path()
+          ..moveTo(34, -40)
+          ..lineTo(21, -49)
+          ..lineTo(20, -33)
+          ..close(),
+        Palette.pink,
+        1.4,
+      );
+      shape(
+        c,
+        Path()
+          ..moveTo(34, -40)
+          ..lineTo(47, -49)
+          ..lineTo(48, -33)
+          ..close(),
+        Palette.pink,
+        1.4,
+      );
+      c.drawCircle(const Offset(34, -40), 4, fill(Palette.rose));
+    }
+    if (accessory == 'flower') _flower(c, 35, -28, .5);
+    c.restore();
+    if (accessory == 'scarf') {
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(-26, -80, 53, 10),
+          const Radius.circular(5),
+        ),
+        fill(Palette.sage),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(12, -76, 10, 27),
+          const Radius.circular(3),
+        ),
+        fill(Palette.sage),
+      );
+    }
+    c.restore();
+  }
+
+  void _heart(Canvas c, double x, double y, double s, Color color) {
+    final p = Path()
+      ..moveTo(x, y + s * .6)
+      ..cubicTo(x - s * 1.6, y - s * .3, x - s * .6, y - s * 1.2, x, y - s * .5)
+      ..cubicTo(
+        x + s * .6,
+        y - s * 1.2,
+        x + s * 1.6,
+        y - s * .3,
+        x,
+        y + s * .6,
+      );
+    c.drawPath(p, fill(color));
+  }
+
+  void _flower(Canvas c, double x, double y, double s) {
+    c.save();
+    c.translate(x, y);
+    c.scale(s);
+    line(
+      c,
+      const Offset(0, 0),
+      const Offset(0, 24),
+      const Color(0xFF7C9A77),
+      2.5,
+    );
+    oval(c, const Rect.fromLTWH(0, 9, 13, 7), Palette.sage);
+    for (var i = 0; i < 5; i++) {
+      final a = i * math.pi * 2 / 5;
+      c.drawCircle(
+        Offset(math.cos(a) * 7, math.sin(a) * 7),
+        5.5,
+        fill(Palette.pink),
+      );
+    }
+    c.drawCircle(Offset.zero, 4, fill(const Color(0xFFF6D798)));
+    c.restore();
+  }
+
+  void _gift(Canvas c, double x, double y, bool opened) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, y), width: 46, height: 36),
+        const Radius.circular(4),
+      ),
+      fill(Palette.lavender),
+    );
+    line(c, Offset(x, y - 18), Offset(x, y + 17), Palette.paper, 5);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(
+          center: Offset(x, opened ? y - 44 : y - 19),
+          width: 51,
+          height: 10,
+        ),
+        const Radius.circular(3),
+      ),
+      fill(const Color(0xFFC8B1D1)),
+    );
+    if (opened) _heart(c, x, y - 28, 10, Palette.pink);
+  }
+
+  void _umbrella(Canvas c) {
+    line(
+      c,
+      const Offset(200, 95),
+      const Offset(200, 222),
+      const Color(0xFFA98B77),
+      3,
+    );
+    final p = Path()
+      ..moveTo(108, 104)
+      ..quadraticBezierTo(200, -7, 292, 104)
+      ..quadraticBezierTo(270, 91, 246, 106)
+      ..quadraticBezierTo(222, 91, 200, 106)
+      ..quadraticBezierTo(177, 91, 153, 106)
+      ..quadraticBezierTo(130, 91, 108, 104);
+    shape(c, p, Palette.blush, 2);
+  }
+
+  void _spark(Canvas c, Offset p, double r, Color color) {
+    line(c, p.translate(-r, 0), p.translate(r, 0), color, 1.5);
+    line(c, p.translate(0, -r), p.translate(0, r), color, 1.5);
+  }
+
+  void _text(Canvas c, String text, Offset at, double font, Color color) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontFamily: 'Nunito',
+          fontSize: font,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(c, at);
+  }
+
+  @override
+  bool shouldRepaint(covariant BearScenePainter old) => true;
+}

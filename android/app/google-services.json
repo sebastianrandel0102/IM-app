@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "208434515122",
+    "project_id": "bear-with-me-f60a3",
+    "storage_bucket": "bear-with-me-f60a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:208434515122:android:82f3707ce28ea398198dab",
+        "android_client_info": {
+          "package_name": "com.bearwithme.bear_with_me"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCn_IUb2jLm3ES-lkuIGiwo2WDPFM6ZUuc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,671 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+
+import '../../../app/theme/app_theme.dart';
+import '../../affection/domain/affection_type.dart';
+import 'bear_choreography.dart';
+import 'bear_vector_rig.dart';
+import 'rive_bear_scene.dart';
+
+/// Original vector artwork, with editable Flutter choreography, not a Rive rig.
+class BearScene extends StatefulWidget {
+  const BearScene({
+    super.key,
+    this.action,
+    this.sender = BearCharacter.brown,
+    this.theme = SceneTheme.cozyRoom,
+    this.reducedMotion = false,
+    this.holding = false,
+    this.taps = 0,
+    this.walk = 0,
+    this.accessory = 'none',
+    this.variant = 'gentle',
+    this.stopped = false,
+    this.onComplete,
+    this.onContact,
+  });
+  final AffectionType? action;
+  final BearCharacter sender;
+  final SceneTheme theme;
+  final bool reducedMotion, holding, stopped;
+  final int taps;
+  final double walk;
+  final String accessory, variant;
+  final VoidCallback? onComplete, onContact;
+  @override
+  State<BearScene> createState() => _BearSceneState();
+}
+
+class _BearSceneState extends State<BearScene>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final BearPlayback _playback;
+  late final Ticker _ticker;
+  Duration? _lastTick;
+  bool _foreground = true;
+  bool get _reduced =>
+      widget.reducedMotion || MediaQuery.disableAnimationsOf(context);
+  bool get _staticPreview => _reduced && widget.onComplete == null;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _playback = BearPlayback(
+      action: widget.action,
+      variant: widget.variant,
+      reduced: widget.reducedMotion,
+      onComplete: () => widget.onComplete?.call(),
+      onContact: () => widget.onContact?.call(),
+    );
+    _ticker = createTicker((elapsed) {
+      final previous = _lastTick;
+      _lastTick = elapsed;
+      if (previous != null) {
+        _playback.advance((elapsed - previous).inMicroseconds / 1e6);
+      }
+      if ((widget.stopped || _reduced) && _playback.settled) _syncTicker();
+    });
+  }
+
+  void _configure() {
+    _playback.configure(
+      nextAction: widget.action,
+      nextVariant: widget.variant,
+      nextReduced: _reduced,
+      nextHolding: widget.holding,
+      nextStopped: widget.stopped,
+      nextTaps: widget.taps,
+      nextWalk: widget.walk,
+    );
+    if (_staticPreview) _playback.showPreview();
+    _syncTicker();
+  }
+
+  void _syncTicker() {
+    final enabled =
+        _foreground &&
+        TickerMode.valuesOf(context).enabled &&
+        !_staticPreview &&
+        !((widget.stopped || _reduced) && _playback.settled);
+    if (enabled && !_ticker.isActive) {
+      _lastTick = null;
+      _ticker.start();
+    }
+    if (!enabled && _ticker.isActive) {
+      _ticker.stop();
+      _lastTick = null;
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _configure();
+  }
+
+  @override
+  void didUpdateWidget(BearScene oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _configure();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _foreground = state == AppLifecycleState.resumed;
+    _syncTicker();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _ticker.dispose();
+    _playback.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scene = Semantics(
+      label: widget.action == null
+          ? 'The caramel bear and white bear, together in a cozy little world'
+          : '${widget.sender.name} bear and ${widget.sender.other.name} bear: ${widget.action!.title}',
+      image: true,
+      child: RepaintBoundary(
+        child: CustomPaint(
+          painter: BearScenePainter(
+            t: 0,
+            action: widget.action,
+            sender: widget.sender,
+            theme: widget.theme,
+            holding: widget.holding,
+            taps: widget.taps,
+            walk: widget.walk,
+            reduced: _reduced,
+            accessory: widget.accessory,
+            variant: widget.variant,
+            stopped: widget.stopped,
+            playback: _playback,
+          ),
+          size: Size.infinite,
+        ),
+      ),
+    );
+    if (const bool.fromEnvironment('USE_AUTHORED_RIVE')) {
+      return RiveBearScene(
+        fallback: scene,
+        action: widget.action,
+        sender: widget.sender,
+        holding: widget.holding,
+        taps: widget.taps,
+        reducedMotion: _reduced,
+        variant: widget.variant,
+      );
+    }
+    return scene;
+  }
+}
+
+class BearScenePainter extends CustomPainter {
+  BearScenePainter({
+    required this.t,
+    required this.action,
+    required this.sender,
+    required this.theme,
+    required this.holding,
+    required this.taps,
+    required this.walk,
+    required this.reduced,
+    required this.accessory,
+    required this.variant,
+    required this.stopped,
+    this.playback,
+  }) : super(repaint: playback);
+  final double t, walk;
+  final AffectionType? action;
+  final BearCharacter sender;
+  final SceneTheme theme;
+  final bool holding, reduced, stopped;
+  final int taps;
+  final String accessory, variant;
+  final BearPlayback? playback;
+  double get clock => reduced || stopped ? 0 : playback?.seconds ?? t * 8;
+  static const chocolate = Palette.outline;
+  Paint fill(Color c) => Paint()..color = c;
+  Paint stroke(Color c, [double width = 2.6]) => Paint()
+    ..color = c
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  void line(Canvas c, Offset a, Offset b, Color color, [double w = 2]) =>
+      c.drawLine(a, b, stroke(color, w));
+  void shape(Canvas c, Path p, Color color, [double w = 2.6]) {
+    c.drawPath(p, fill(color));
+    c.drawPath(p, stroke(chocolate, w));
+  }
+
+  void oval(Canvas c, Rect rect, Color color, {bool outlined = false}) {
+    c.drawOval(rect, fill(color));
+    if (outlined) c.drawOval(rect, stroke(chocolate));
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    canvas.save();
+    final scale = math.min(size.width / 400, size.height / 340);
+    canvas.translate(
+      (size.width - 400 * scale) / 2,
+      (size.height - 340 * scale) / 2,
+    );
+    canvas.scale(scale);
+    canvas.clipRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(0, 0, 400, 340),
+        const Radius.circular(28),
+      ),
+    );
+    final frame =
+        playback?.frame ??
+        BearChoreography.sample(
+          action: action,
+          t: t,
+          seconds:
+              t *
+              BearChoreography.duration(action, variant).inMilliseconds /
+              1000,
+          reduced: reduced,
+          taps: taps,
+          walk: walk,
+          input: taps > 0 ? .7 : 1,
+          stopped: stopped,
+          variant: variant,
+        );
+    final night =
+        [SceneTheme.moonlitNight, SceneTheme.starryBedroom].contains(theme) ||
+        action == AffectionType.goodnightKiss ||
+        action == AffectionType.sleepTogether ||
+        action == AffectionType.iMissYou;
+    final dim = night && frame.dim > .25;
+    final bg = night
+        ? const Color(0xFFE2D7EC)
+        : theme == SceneTheme.pastelPinkRoom
+        ? const Color(0xFFF6DFDF)
+        : const Color(0xFFF2E5D9);
+    canvas.drawColor(bg, BlendMode.srcOver);
+    _room(canvas, night, dim);
+    oval(
+      canvas,
+      const Rect.fromLTWH(62, 267, 276, 44),
+      night ? const Color(0xFFB9A2BB) : const Color(0xFFE7CDC0),
+    );
+    oval(
+      canvas,
+      const Rect.fromLTWH(71, 270, 258, 35),
+      night ? const Color(0xFFCCB9CF) : const Color(0xFFF2DED0),
+    );
+    if ([
+      AffectionType.cuddleTime,
+      AffectionType.sleepTogether,
+      AffectionType.goodnightKiss,
+    ].contains(action)) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(76, 245, 248, 45),
+          const Radius.circular(18),
+        ),
+        fill(const Color(0xFFC3B3CD)),
+      );
+    }
+    for (final p in [frame.left, frame.right]) {
+      oval(
+        canvas,
+        Rect.fromCenter(
+          center: Offset(p.root.dx, 280 + p.sit * 8),
+          width: 73 / p.squash,
+          height: 8 * p.squash,
+        ),
+        const Color(0x27352320),
+      );
+    }
+    canvas.save();
+    canvas.translate(200, 185);
+    final spin = action == AffectionType.spinningHug ? frame.spin : 0.0;
+    canvas.rotate(spin);
+    final turn = math.sin(spin / 2).abs();
+    canvas.scale(1 - turn * .18);
+    canvas.translate(-200, -185);
+    if (action == AffectionType.piggybackRide) {
+      BearVectorRig.draw(canvas, frame.right, sender.other, 'none');
+      BearVectorRig.draw(canvas, frame.left, sender, accessory);
+    } else {
+      BearVectorRig.draw(canvas, frame.left, sender, accessory);
+      BearVectorRig.draw(canvas, frame.right, sender.other, 'none');
+    }
+    BearVectorRig.arm(canvas, frame.left, sender, foreground: true);
+    BearVectorRig.arm(canvas, frame.right, sender.other, foreground: true);
+    if (action == AffectionType.blowingKisses) {
+      final progress = playback?.progress ?? t;
+      final lift = BearChoreography.window(progress, .15, .30, .38, .54);
+      if (lift > .01) {
+        canvas.drawCircle(
+          BearVectorRig.paw(frame.left),
+          6 * lift,
+          fill(BearVectorRig.fur(sender)),
+        );
+        canvas.drawCircle(
+          BearVectorRig.paw(frame.left),
+          6 * lift,
+          stroke(chocolate, 1.8),
+        );
+      }
+    }
+    canvas.restore();
+    if (frame.blanket > .001) {
+      final y = 287 - frame.blanket * 51;
+      final blanket = Path()
+        ..moveTo(93, y)
+        ..quadraticBezierTo(190, y - 19 - frame.left.breath, 306, y + 2)
+        ..lineTo(315, 284)
+        ..quadraticBezierTo(201, 296, 85, 282)
+        ..close();
+      shape(canvas, blanket, Palette.sage, 1.8);
+      for (var i = 0; i < 6; i++) {
+        line(
+          canvas,
+          Offset(106 + i * 36.0, y + 9),
+          Offset(101 + i * 36.0, 282),
+          const Color(0xFF93B39A),
+          1,
+        );
+      }
+    }
+    final prop = frame.prop;
+    switch (action) {
+      case AffectionType.flowerSurprise:
+        if (frame.reveal > .01) {
+          canvas.save();
+          canvas.translate(prop.dx, prop.dy);
+          canvas.scale(frame.reveal);
+          canvas.rotate(math.sin(clock * 2) * .025 * frame.reveal);
+          _flower(canvas, 0, 0, 1 + frame.bloom * .18 + frame.effect * .06);
+          canvas.restore();
+        }
+      case AffectionType.heartDelivery:
+      case AffectionType.shyConfession:
+        _heart(
+          canvas,
+          prop.dx,
+          prop.dy,
+          (action == AffectionType.shyConfession ? 11 : 23) * frame.reveal,
+          Palette.pink,
+        );
+      case AffectionType.surpriseBox:
+        _giftAnimated(canvas, prop, frame.reveal);
+      case AffectionType.blowingKisses:
+        _heart(canvas, prop.dx, prop.dy, 10 * frame.reveal, Palette.pink);
+      case AffectionType.underOneUmbrella:
+        canvas.save();
+        canvas.translate(prop.dx - 200, prop.dy - 95);
+        canvas.translate(200, 218);
+        canvas.rotate(frame.spin);
+        canvas.translate(-200, -218);
+        _umbrella(canvas);
+        canvas.restore();
+      case AffectionType.wipeAwayTears:
+        oval(
+          canvas,
+          Rect.fromCenter(center: prop, width: 6, height: 10),
+          const Color(0xFF9AC8D9).withValues(alpha: frame.tear),
+        );
+      case AffectionType.goodMorning:
+        canvas.drawCircle(
+          prop,
+          18 * frame.reveal,
+          fill(const Color(0xFFFFD9A0)),
+        );
+      default:
+        break;
+    }
+    if (frame.effect > .01 && !reduced) {
+      if ([
+        AffectionType.highFive,
+        AffectionType.surpriseBox,
+        AffectionType.flowerSurprise,
+      ].contains(action)) {
+        for (var i = 0; i < 4; i++) {
+          final a = i * math.pi / 2 + .4;
+          _spark(
+            canvas,
+            prop + Offset(math.cos(a), math.sin(a)) * (12 + 8 * frame.effect),
+            3 * frame.effect,
+            Palette.rose,
+          );
+        }
+      } else {
+        _heart(canvas, prop.dx, prop.dy, 8 * frame.effect, Palette.pink);
+      }
+    }
+    if (action == null) {
+      _heart(canvas, 203, 108 + math.sin(clock * 1.4) * 3, 10, Palette.pink);
+    }
+    if (night && frame.dim > 0) {
+      canvas.drawColor(
+        const Color(0xFF554666).withValues(alpha: frame.dim.clamp(0, .5)),
+        BlendMode.srcOver,
+      );
+    }
+    canvas.restore();
+  }
+
+  void _giftAnimated(Canvas c, Offset p, double open) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: p, width: 46, height: 36),
+        const Radius.circular(4),
+      ),
+      fill(Palette.lavender),
+    );
+    line(c, p.translate(0, -18), p.translate(0, 17), Palette.paper, 5);
+    c.save();
+    c.translate(p.dx - open * 6, p.dy - 19 - open * 25);
+    c.rotate(-open * .14);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(-25.5, -5, 51, 10),
+        const Radius.circular(3),
+      ),
+      fill(const Color(0xFFC8B1D1)),
+    );
+    c.restore();
+    if (open > 0) {
+      _heart(c, p.dx, p.dy - 12 - open * 16, 10 * open, Palette.pink);
+    }
+  }
+
+  void _room(Canvas c, bool night, bool dim) {
+    final garden = theme == SceneTheme.flowerGarden;
+    final sky = night ? const Color(0xFF877A9D) : const Color(0xFFD5CFDE);
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(144, 23, 112, 107),
+        const Radius.circular(53),
+      ),
+      fill(const Color(0xFFE7D7CB)),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(151, 30, 98, 94),
+        const Radius.circular(47),
+      ),
+      fill(sky),
+    );
+    if (night) {
+      c.drawCircle(const Offset(219, 55), 11, fill(const Color(0xFFFFEAC9)));
+      c.drawCircle(const Offset(224, 51), 10, fill(sky));
+      for (final p in [
+        const Offset(173, 58),
+        const Offset(194, 43),
+        const Offset(229, 90),
+        const Offset(176, 91),
+      ]) {
+        _spark(c, p, 2.5, const Color(0xFFFCE9D3));
+      }
+    } else {
+      oval(c, const Rect.fromLTWH(167, 65, 34, 12), const Color(0xFFECE7EF));
+      oval(c, const Rect.fromLTWH(209, 47, 27, 10), const Color(0xFFECE7EF));
+      c.drawCircle(const Offset(225, 83), 9, fill(const Color(0xFFF1DBC2)));
+    }
+    line(
+      c,
+      const Offset(200, 29),
+      const Offset(200, 124),
+      const Color(0xFFE7D7CB),
+      5,
+    );
+    line(
+      c,
+      const Offset(151, 83),
+      const Offset(248, 83),
+      const Color(0xFFE7D7CB),
+      5,
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(139, 122, 122, 7),
+        const Radius.circular(3),
+      ),
+      fill(const Color(0xFFCFB7A7)),
+    );
+    line(
+      c,
+      const Offset(0, 252),
+      const Offset(66, 252),
+      const Color(0xFFE2D0C2),
+      1,
+    );
+    line(
+      c,
+      const Offset(333, 252),
+      const Offset(400, 252),
+      const Color(0xFFE2D0C2),
+      1,
+    );
+    // A little plant and two books keep the room quiet and personal.
+    line(
+      c,
+      const Offset(45, 204),
+      const Offset(45, 154),
+      const Color(0xFF8B9F7E),
+      2,
+    );
+    for (var i = 0; i < 3; i++) {
+      c.save();
+      c.translate(44, 164 + i * 13.0);
+      c.rotate(i.isEven ? -.7 : .7);
+      oval(c, const Rect.fromLTWH(-17, -6, 19, 10), const Color(0xFFB0C0A0));
+      c.restore();
+    }
+    final pot = Path()
+      ..moveTo(30, 200)
+      ..lineTo(60, 200)
+      ..lineTo(55, 224)
+      ..quadraticBezierTo(45, 229, 35, 224)
+      ..close();
+    c.drawPath(pot, fill(const Color(0xFFD8AA91)));
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(338, 191, 34, 6),
+        const Radius.circular(2),
+      ),
+      fill(const Color(0xFFC6AFC7)),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(343, 184, 27, 6),
+        const Radius.circular(2),
+      ),
+      fill(const Color(0xFFE7C0B1)),
+    );
+    line(
+      c,
+      const Offset(334, 200),
+      const Offset(377, 200),
+      const Color(0xFFC8AF9E),
+      4,
+    );
+    if (garden) {
+      _flower(c, 46, 260, .8);
+      _flower(c, 355, 253, .7);
+    }
+    if (theme == SceneTheme.rainyWindow || action?.scene == 'rain') {
+      for (var i = 0; i < 8; i++) {
+        final y = 40 + ((i * 17 + clock * 18) % 75);
+        line(
+          c,
+          Offset(164 + i * 10.0, y),
+          Offset(162 + i * 10.0, y + 6),
+          const Color(0xFFB9ACC8),
+          1.5,
+        );
+      }
+    }
+    if (action?.scene == 'sleep') {
+      line(
+        c,
+        const Offset(348, 213),
+        const Offset(348, 246),
+        const Color(0xFF9F857D),
+        3,
+      );
+      final lamp = Path()
+        ..moveTo(336, 209)
+        ..lineTo(341, 190)
+        ..lineTo(355, 190)
+        ..lineTo(361, 209)
+        ..close();
+      c.drawPath(
+        lamp,
+        fill(dim ? const Color(0xFF9986A3) : const Color(0xFFF5D8AE)),
+      );
+    }
+  }
+
+  void _heart(Canvas c, double x, double y, double s, Color color) {
+    final p = Path()
+      ..moveTo(x, y + s * .6)
+      ..cubicTo(x - s * 1.6, y - s * .3, x - s * .6, y - s * 1.2, x, y - s * .5)
+      ..cubicTo(
+        x + s * .6,
+        y - s * 1.2,
+        x + s * 1.6,
+        y - s * .3,
+        x,
+        y + s * .6,
+      );
+    c.drawPath(p, fill(color));
+  }
+
+  void _flower(Canvas c, double x, double y, double s) {
+    c.save();
+    c.translate(x, y);
+    c.scale(s);
+    line(
+      c,
+      const Offset(0, 0),
+      const Offset(0, 24),
+      const Color(0xFF7C9A77),
+      2.5,
+    );
+    oval(c, const Rect.fromLTWH(0, 9, 13, 7), Palette.sage);
+    for (var i = 0; i < 5; i++) {
+      final a = i * math.pi * 2 / 5;
+      c.drawCircle(
+        Offset(math.cos(a) * 7, math.sin(a) * 7),
+        5.5,
+        fill(Palette.pink),
+      );
+    }
+    c.drawCircle(Offset.zero, 4, fill(const Color(0xFFF6D798)));
+    c.restore();
+  }
+
+  void _umbrella(Canvas c) {
+    line(
+      c,
+      const Offset(200, 95),
+      const Offset(200, 222),
+      const Color(0xFFA98B77),
+      3,
+    );
+    final p = Path()
+      ..moveTo(108, 104)
+      ..quadraticBezierTo(200, -7, 292, 104)
+      ..quadraticBezierTo(270, 91, 246, 106)
+      ..quadraticBezierTo(222, 91, 200, 106)
+      ..quadraticBezierTo(177, 91, 153, 106)
+      ..quadraticBezierTo(130, 91, 108, 104);
+    shape(c, p, Palette.blush, 2);
+  }
+
+  void _spark(Canvas c, Offset p, double r, Color color) {
+    line(c, p.translate(-r, 0), p.translate(r, 0), color, 1.5);
+    line(c, p.translate(0, -r), p.translate(0, r), color, 1.5);
+  }
+
+  @override
+  bool shouldRepaint(covariant BearScenePainter old) =>
+      playback != old.playback ||
+      t != old.t ||
+      action != old.action ||
+      sender != old.sender ||
+      theme != old.theme ||
+      holding != old.holding ||
+      taps != old.taps ||
+      walk != old.walk ||
+      reduced != old.reduced ||
+      accessory != old.accessory ||
+      variant != old.variant ||
+      stopped != old.stopped;
+}
