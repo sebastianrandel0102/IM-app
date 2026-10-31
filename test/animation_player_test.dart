@@ -82,6 +82,34 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
   });
 
+  testWidgets(
+    'cuddle blanket and lamp controls wait for contact and replay resets them',
+    (tester) async {
+      await open(tester, 'cuddleTime');
+      final blanket = find.widgetWithText(FilterChip, 'Cover with blanket');
+      final lamp = find.widgetWithText(FilterChip, 'Turn off lamp');
+      expect(tester.widget<FilterChip>(blanket).onSelected, isNull);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.ensureVisible(blanket);
+      await tester.tap(blanket);
+      await tester.pump();
+      expect(tester.widget<FilterChip>(blanket).selected, isTrue);
+      expect(tester.widget<FilterChip>(lamp).selected, isFalse);
+      await tester.tap(lamp);
+      await tester.pump();
+      expect(tester.widget<FilterChip>(lamp).selected, isTrue);
+      final replay = find.widgetWithIcon(OutlinedButton, Icons.replay_rounded);
+      await tester.ensureVisible(replay);
+      await tester.tap(replay);
+      await tester.pump();
+      expect(tester.widget<FilterChip>(blanket).selected, isFalse);
+      expect(tester.widget<FilterChip>(lamp).selected, isFalse);
+      expect(tester.widget<FilterChip>(blanket).onSelected, isNull);
+      await tester.pumpWidget(const SizedBox());
+      expect(tester.binding.transientCallbackCount, 0);
+    },
+  );
+
   testWidgets('backgrounding releases a held hug before resume', (
     tester,
   ) async {

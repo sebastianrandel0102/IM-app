@@ -69,7 +69,9 @@ void main() {
                 }
               }
               for (final near in [true, false]) {
-                final shoulder = p.bodyPoint(Offset(near ? 23 : -23, -80));
+                final shoulder = p.anchor(
+                  near ? BearAnchor.shoulder : BearAnchor.rightShoulder,
+                );
                 expect(
                   (BearVectorRig.paw(p, near: near) - shoulder).distance,
                   lessThanOrEqualTo(64.001),

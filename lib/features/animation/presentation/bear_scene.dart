@@ -28,6 +28,7 @@ class BearScene extends StatefulWidget {
     this.onContact,
     this.onInputReadyChanged,
     this.onEvent,
+    this.controls = const {},
   });
   final AffectionType? action;
   final BearCharacter sender;
@@ -36,6 +37,7 @@ class BearScene extends StatefulWidget {
   final int taps;
   final double walk;
   final String accessory, variant;
+  final Set<BearSceneControl> controls;
   final VoidCallback? onComplete, onContact;
   final ValueChanged<bool>? onInputReadyChanged;
   final ValueChanged<BearAnimationEvent>? onEvent;
@@ -89,6 +91,7 @@ class _BearSceneState extends State<BearScene>
       nextStopped: widget.stopped,
       nextTaps: widget.taps,
       nextWalk: widget.walk,
+      nextControls: widget.controls,
     );
     if (_staticPreview) _playback.showPreview();
     _syncTicker();
@@ -192,6 +195,8 @@ class BearScenePainter extends CustomPainter {
     required this.variant,
     required this.stopped,
     this.playback,
+    this.showAnchors = false,
+    this.showBounds = false,
   }) : super(repaint: playback);
   final double t, walk;
   final AffectionType? action;
@@ -201,6 +206,7 @@ class BearScenePainter extends CustomPainter {
   final int taps;
   final String accessory, variant;
   final BearPlayback? playback;
+  final bool showAnchors, showBounds;
   double get clock => reduced || stopped ? 0 : playback?.seconds ?? t * 8;
   static const chocolate = Palette.outline;
   Paint fill(Color c) => Paint()..color = c;
@@ -281,6 +287,7 @@ class BearScenePainter extends CustomPainter {
       AffectionType.cuddleTime,
       AffectionType.sleepTogether,
       AffectionType.goodnightKiss,
+      AffectionType.comfortHug,
     ].contains(action)) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -289,6 +296,25 @@ class BearScenePainter extends CustomPainter {
         ),
         fill(const Color(0xFFC3B3CD)),
       );
+    }
+    if (action == AffectionType.sleepTogether ||
+        action == AffectionType.goodnightKiss) {
+      for (final p
+          in action == AffectionType.goodnightKiss
+              ? [frame.right]
+              : [frame.left, frame.right]) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(
+              center: p.anchor(BearAnchor.headCenter).translate(0, 49),
+              width: 132,
+              height: 30,
+            ),
+            const Radius.circular(14),
+          ),
+          fill(const Color(0xFFF7EDF3)),
+        );
+      }
     }
     for (final p in [frame.left, frame.right]) {
       oval(
@@ -305,15 +331,43 @@ class BearScenePainter extends CustomPainter {
     final rightBehind =
         action == AffectionType.piggybackRide ||
         (action == AffectionType.spinningHug && math.sin(frame.spin) > 0);
-    if (rightBehind) {
-      BearVectorRig.draw(canvas, frame.right, sender.other, 'none');
-      BearVectorRig.draw(canvas, frame.left, sender, accessory);
-    } else {
-      BearVectorRig.draw(canvas, frame.left, sender, accessory);
-      BearVectorRig.draw(canvas, frame.right, sender.other, 'none');
+    final actors = rightBehind
+        ? [(frame.right, sender.other, 'none'), (frame.left, sender, accessory)]
+        : [
+            (frame.left, sender, accessory),
+            (frame.right, sender.other, 'none'),
+          ];
+    // Each part is drawn once. Rear arms stay behind both torsos; front arms
+    // cross the partner's torso while the head masks protect both faces.
+    for (final (pose, bear, _) in actors) {
+      BearVectorRig.arm(canvas, pose, bear, near: false);
     }
-    BearVectorRig.arm(canvas, frame.left, sender, foreground: true);
-    BearVectorRig.arm(canvas, frame.right, sender.other, foreground: true);
+    for (final (pose, bear, item) in actors) {
+      BearVectorRig.draw(canvas, pose, bear, item, head: false, arms: false);
+    }
+    for (final (pose, bear, item) in actors) {
+      BearVectorRig.draw(canvas, pose, bear, item, body: false, arms: false);
+    }
+    for (final (pose, bear, _) in actors) {
+      final partner = identical(pose, frame.left) ? frame.right : frame.left;
+      final faceTouch =
+          identical(pose, frame.left) &&
+          ([
+                AffectionType.headPat,
+                AffectionType.noseBoop,
+                AffectionType.wipeAwayTears,
+                AffectionType.goodnightKiss,
+              ].contains(action) ||
+              (action == AffectionType.comfortHug &&
+                  (playback?.interaction.pat ?? 0) > 0));
+      BearVectorRig.arm(
+        canvas,
+        pose,
+        bear,
+        foreground: true,
+        occluders: faceTouch ? const [] : [partner],
+      );
+    }
     if (action == AffectionType.blowingKisses) {
       final progress = playback?.progress ?? t;
       final lift = BearChoreography.window(progress, .15, .30, .38, .54);
@@ -332,12 +386,15 @@ class BearScenePainter extends CustomPainter {
     }
     canvas.restore();
     if (frame.blanket > .001) {
-      final y = 287 - frame.blanket * 51;
+      final sleeping =
+          action == AffectionType.sleepTogether ||
+          action == AffectionType.goodnightKiss;
+      final y = 287 - frame.blanket * (sleeping ? 24 : 32);
       final blanket = Path()
-        ..moveTo(93, y)
-        ..quadraticBezierTo(190, y - 19 - frame.left.breath, 306, y + 2)
-        ..lineTo(315, 284)
-        ..quadraticBezierTo(201, 296, 85, 282)
+        ..moveTo(76, y)
+        ..quadraticBezierTo(190, y - 10 - frame.left.breath, 324, y + 2)
+        ..lineTo(332, 291)
+        ..quadraticBezierTo(201, 299, 68, 289)
         ..close();
       shape(canvas, blanket, Palette.sage, 1.8);
       for (var i = 0; i < 6; i++) {
@@ -419,13 +476,88 @@ class BearScenePainter extends CustomPainter {
     if (action == null) {
       _heart(canvas, 203, 108 + math.sin(clock * 1.4) * 3, 10, Palette.pink);
     }
-    if (night && frame.dim > 0) {
+    if (frame.dim > 0) {
       canvas.drawColor(
         const Color(0xFF554666).withValues(alpha: frame.dim.clamp(0, .5)),
         BlendMode.srcOver,
       );
     }
+    if (showAnchors || showBounds) _debug(canvas, frame, scale);
     canvas.restore();
+  }
+
+  // Only the standalone workbench exposes these painter flags.
+  void _debug(Canvas c, BearFrame frame, double scale) {
+    for (final (p, name, color) in [
+      (frame.left, sender.name, Colors.blue),
+      (frame.right, sender.other.name, Colors.deepOrange),
+    ]) {
+      if (showBounds) {
+        final points = [
+          for (final x in [-66.0, 72.0])
+            for (final y in [-64.0, 60.0]) p.headPoint(Offset(x, y)),
+          p.bodyPoint(const Offset(-78, -15)),
+          p.bodyPoint(const Offset(44, 0)),
+        ];
+        var bounds = Rect.fromPoints(points.first, points.first);
+        for (final point in points.skip(1)) {
+          bounds = bounds.expandToInclude(Rect.fromPoints(point, point));
+        }
+        c.drawRect(bounds, stroke(color.withValues(alpha: .6), 1));
+      }
+      if (showAnchors) {
+        line(
+          c,
+          p.root - const Offset(5, 0),
+          p.root + const Offset(5, 0),
+          color,
+        );
+        line(
+          c,
+          p.root - const Offset(0, 5),
+          p.root + const Offset(0, 5),
+          color,
+        );
+        for (final anchor in BearAnchor.values) {
+          final at = p.anchor(anchor);
+          c.drawCircle(at, 2.2, fill(color));
+        }
+        for (final near in [true, false]) {
+          final shoulder = p.anchor(
+            near ? BearAnchor.shoulder : BearAnchor.rightShoulder,
+          );
+          final paw = BearVectorRig.paw(p, near: near);
+          line(c, shoulder, paw, color.withValues(alpha: .5), 1);
+          c.drawCircle(paw, 4, stroke(color, 1));
+        }
+      }
+      final label = TextPainter(
+        text: TextSpan(
+          text:
+              '$name · facing ${p.facing.toInt()} · scale ${scale.toStringAsFixed(2)}',
+          style: TextStyle(fontSize: 9, color: color),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      label.paint(c, Offset(8, identical(p, frame.left) ? 307 : 319));
+      label.dispose();
+    }
+    if (showAnchors) {
+      for (final contact in frame.contacts) {
+        line(c, contact.from, contact.to, Colors.purple, 1);
+        c.drawCircle(contact.to, 4, stroke(Colors.purple, 1));
+      }
+    }
+    final label = TextPainter(
+      text: TextSpan(
+        text:
+            '${action?.name ?? 'idle'} · ${playback?.stage.name ?? BearChoreography.stage(t).name} · ${((playback?.progress ?? t) * 100).toStringAsFixed(1)}%',
+        style: const TextStyle(fontSize: 10, color: Colors.black),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    label.paint(c, const Offset(8, 6));
+    label.dispose();
   }
 
   void _giftAnimated(Canvas c, Offset p, double open) {
@@ -676,5 +808,7 @@ class BearScenePainter extends CustomPainter {
       reduced != old.reduced ||
       accessory != old.accessory ||
       variant != old.variant ||
+      showAnchors != old.showAnchors ||
+      showBounds != old.showBounds ||
       stopped != old.stopped;
 }

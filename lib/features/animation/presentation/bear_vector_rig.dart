@@ -38,178 +38,217 @@ class BearVectorRig {
     c.translate(0, p.sit * 18 / p.squash);
   }
 
-  static void draw(Canvas c, BearPose p, BearCharacter bear, String accessory) {
+  static void draw(
+    Canvas c,
+    BearPose p,
+    BearCharacter bear,
+    String accessory, {
+    bool body = true,
+    bool head = true,
+    bool arms = true,
+  }) {
     final color = fur(bear);
-    c.save();
-    bodyTransform(c, p);
-    // Planted feet pivot at the hip. Sitting uses a rounded replacement pose.
-    for (final side in [-1, 1]) {
+    if (body) {
       c.save();
-      final foot = BearMotion.foot(p.gaitPhase, side, p.gaitWeight);
-      c.translate(
-        side * 16.0 + foot.dx * p.gaitDirection,
-        -31 + p.sit * 4 + foot.dy,
-      );
-      c.rotate(side * p.step * .035);
-      oval(
+      bodyTransform(c, p);
+      // Planted feet pivot at the hip. Sitting uses a rounded replacement pose.
+      for (final side in [-1, 1]) {
+        c.save();
+        final foot = BearMotion.foot(p.gaitPhase, side, p.gaitWeight);
+        c.translate(
+          side * (16 + p.sit * 7.0) * (1 - p.recline) +
+              (-57 + side * 13.0) * p.recline +
+              foot.dx * p.gaitDirection,
+          -31 + p.sit * 4 + p.recline + foot.dy,
+        );
+        c.rotate(side * p.step * .035);
+        oval(
+          c,
+          Rect.fromLTWH(
+            -11,
+            0,
+            23 + p.sit * 10 + p.recline * 8,
+            30 - p.sit * 11 - p.recline * 13,
+          ),
+          color,
+          outline: true,
+        );
+        c.restore();
+      }
+      shape(
         c,
-        Rect.fromLTWH(-11, 0, 23 + p.sit * 7, 30 - p.sit * 10),
+        BearArtwork.torso(
+          sit: p.sit,
+          breath: p.breath,
+          recline: p.recline,
+          embrace: p.embrace,
+        ).path,
         color,
-        outline: true,
       );
       c.restore();
     }
-    shape(c, BearArtwork.torso(sit: p.sit, breath: p.breath).path, color);
-    c.restore();
-    arm(c, p, bear, near: false);
-    arm(c, p, bear);
+    if (arms) {
+      arm(c, p, bear, near: false);
+      arm(c, p, bear);
+    }
 
-    c.save();
-    bodyTransform(c, p);
-    // Undo torso squash before the rigid head transform: no stretched faces.
-    c.translate(p.headX, -113 + p.headY - p.breath);
-    c.scale(p.squash, 1 / p.squash);
-    c.translate(0, 50);
-    c.rotate(p.head);
-    c.translate(0, -50);
-    final inner = bear == BearCharacter.brown
-        ? const Color(0xFFECC28B)
-        : const Color(0xFFF4B5C4);
-    for (final side in [-1, 1]) {
+    if (head) {
       c.save();
-      c.translate(side == -1 ? -36.5 : 42.5, -38);
-      c.translate(0, 18);
-      c.rotate(side * p.ear);
-      c.translate(0, -18);
-      oval(c, const Rect.fromLTWH(-21.5, -24, 43, 48), color, outline: true);
-      oval(c, const Rect.fromLTWH(-11.5, -14, 23, 28), inner);
-      c.restore();
-    }
-    // Authored profile correction brings the nose to the edge of the face.
-    // It changes the silhouette locally, rather than stretching the head.
-    final profile = p.turn;
-    shape(c, BearArtwork.head(profile).path, color, 3.1);
-    final faceX = 9 + profile * 43;
-    final blush = bear == BearCharacter.white
-        ? .5 + p.blush * .3
-        : p.blush * .5;
-    for (final side in [-1, 1]) {
-      final cheekX = (faceX + side * 31).clamp(-42.0, 48.0);
-      oval(
-        c,
-        Rect.fromCenter(
-          center: Offset(cheekX, 28),
-          width: 21 * (1 - p.cheek),
-          height: 18,
-        ),
-        Palette.pink.withValues(alpha: blush),
+      bodyTransform(c, p);
+      // Undo torso squash before the rigid head transform: no stretched faces.
+      c.translate(p.headX, -113 + p.headY - p.breath);
+      c.scale(p.squash, 1 / p.squash);
+      c.translate(0, 50);
+      c.rotate(p.head);
+      c.translate(0, -50);
+      final inner = bear == BearCharacter.brown
+          ? const Color(0xFFECC28B)
+          : const Color(0xFFF4B5C4);
+      for (final side in [-1, 1]) {
+        c.save();
+        c.translate(side == -1 ? -36.5 : 42.5, -38);
+        c.translate(0, 18);
+        c.rotate(side * p.ear);
+        c.translate(0, -18);
+        oval(c, const Rect.fromLTWH(-21.5, -24, 43, 48), color, outline: true);
+        oval(c, const Rect.fromLTWH(-11.5, -14, 23, 28), inner);
+        c.restore();
+      }
+      // Authored profile correction brings the nose to the edge of the face.
+      // It changes the silhouette locally, rather than stretching the head.
+      final profile = p.turn;
+      shape(c, BearArtwork.head(profile).path, color, 3.1);
+      // A rear-facing layer is exposed during the shared orbit. The face fades
+      // behind the fur without scaling or warping the original head artwork.
+      if (p.backView > 0) {
+        c.saveLayer(
+          const Rect.fromLTWH(-70, -65, 145, 135),
+          Paint()..color = Color.fromRGBO(255, 255, 255, 1 - p.backView),
+        );
+      }
+      final faceX = 9 + profile * 43;
+      final blush = bear == BearCharacter.white
+          ? .5 + p.blush * .3
+          : p.blush * .5;
+      for (final side in [-1, 1]) {
+        final cheekX = (faceX + side * 31).clamp(-42.0, 48.0);
+        oval(
+          c,
+          Rect.fromCenter(
+            center: Offset(cheekX, 28),
+            width: 21 * (1 - p.cheek),
+            height: 18,
+          ),
+          Palette.pink.withValues(alpha: blush),
+        );
+      }
+      for (final side in [-1, 1]) {
+        // Hide the far eye smoothly in profile without oversized facial features.
+        final visibility = side == 1 ? 1 - profile : 1.0;
+        final eyeX = (faceX + side * 19 + p.gaze).clamp(-42.0, 45.0);
+        final open = p.eyes.clamp(0.0, 1.0);
+        final openInk = BearMotion.smooth(open / .38);
+        // Continuous closure: both glyphs coexist briefly, without the old
+        // artwork switch at 25% openness. Happy/sleepy arcs share the eye center.
+        oval(
+          c,
+          Rect.fromCenter(
+            center: Offset(eyeX, 16),
+            width: 6,
+            height: .2 + (8.8 + p.surprise * 2) * open,
+          ),
+          Palette.outline.withValues(alpha: visibility * openInk),
+        );
+        c.drawPath(
+          Path()
+            ..moveTo(eyeX - 4, 14 + p.happyEyes * 3)
+            ..quadraticBezierTo(
+              eyeX,
+              18 - p.happyEyes * 7,
+              eyeX + 4,
+              14 + p.happyEyes * 3,
+            ),
+          ink(2.4)
+            ..color = Palette.outline.withValues(
+              alpha: visibility * (1 - openInk),
+            ),
+        );
+      }
+      if (bear == BearCharacter.brown) {
+        oval(
+          c,
+          Rect.fromCenter(
+            center: Offset(faceX, 28),
+            width: 21 - profile * 4,
+            height: 27,
+          ),
+          const Color(0xFFF2D49C),
+        );
+      }
+      c.drawPath(
+        Path()
+          ..moveTo(faceX - 4, 23)
+          ..quadraticBezierTo(faceX, 21, faceX + 4, 23)
+          ..lineTo(faceX, 27)
+          ..close(),
+        fill(Palette.outline),
       );
-    }
-    for (final side in [-1, 1]) {
-      // Hide the far eye smoothly in profile without oversized facial features.
-      final visibility = side == 1 ? 1 - profile : 1.0;
-      final eyeX = (faceX + side * 19 + p.gaze).clamp(-42.0, 45.0);
-      final open = p.eyes.clamp(0.0, 1.0);
-      final openInk = BearMotion.smooth(open / .38);
-      // Continuous closure: both glyphs coexist briefly, without the old
-      // artwork switch at 25% openness. Happy/sleepy arcs share the eye center.
+      c.drawLine(Offset(faceX, 26), Offset(faceX, 31), ink(2));
+      final normalMouth = (1 - p.mouthOpen) * (1 - p.pucker);
+      c.drawPath(
+        BearArtwork.mouth(faceX, p.smile).path,
+        ink(1.9)..color = Palette.outline.withValues(alpha: normalMouth),
+      );
       oval(
         c,
         Rect.fromCenter(
-          center: Offset(eyeX, 16),
-          width: 6,
-          height: .2 + (8.8 + p.surprise * 2) * open,
+          center: Offset(faceX, 35),
+          width: 6.4,
+          height: 2 + p.mouthOpen * 7,
         ),
-        Palette.outline.withValues(alpha: visibility * openInk),
+        Palette.outline.withValues(alpha: p.mouthOpen * (1 - p.pucker)),
       );
       c.drawPath(
         Path()
-          ..moveTo(eyeX - 4, 14 + p.happyEyes * 3)
-          ..quadraticBezierTo(
-            eyeX,
-            18 - p.happyEyes * 7,
-            eyeX + 4,
-            14 + p.happyEyes * 3,
-          ),
-        ink(2.4)
-          ..color = Palette.outline.withValues(
-            alpha: visibility * (1 - openInk),
-          ),
+          ..moveTo(faceX - 2, 31)
+          ..quadraticBezierTo(faceX + 7, 32, faceX + 1, 35)
+          ..quadraticBezierTo(faceX + 7, 38, faceX - 2, 39),
+        ink(1.9)..color = Palette.outline.withValues(alpha: p.pucker),
       );
-    }
-    if (bear == BearCharacter.brown) {
-      oval(
-        c,
-        Rect.fromCenter(
-          center: Offset(faceX, 28),
-          width: 21 - profile * 4,
-          height: 27,
-        ),
-        const Color(0xFFF2D49C),
-      );
-    }
-    c.drawPath(
-      Path()
-        ..moveTo(faceX - 4, 23)
-        ..quadraticBezierTo(faceX, 21, faceX + 4, 23)
-        ..lineTo(faceX, 27)
-        ..close(),
-      fill(Palette.outline),
-    );
-    c.drawLine(Offset(faceX, 26), Offset(faceX, 31), ink(2));
-    final normalMouth = (1 - p.mouthOpen) * (1 - p.pucker);
-    c.drawPath(
-      BearArtwork.mouth(faceX, p.smile).path,
-      ink(1.9)..color = Palette.outline.withValues(alpha: normalMouth),
-    );
-    oval(
-      c,
-      Rect.fromCenter(
-        center: Offset(faceX, 35),
-        width: 6.4,
-        height: 2 + p.mouthOpen * 7,
-      ),
-      Palette.outline.withValues(alpha: p.mouthOpen * (1 - p.pucker)),
-    );
-    c.drawPath(
-      Path()
-        ..moveTo(faceX - 2, 31)
-        ..quadraticBezierTo(faceX + 7, 32, faceX + 1, 35)
-        ..quadraticBezierTo(faceX + 7, 38, faceX - 2, 39),
-      ink(1.9)..color = Palette.outline.withValues(alpha: p.pucker),
-    );
-    if (accessory == 'bow') {
-      c.save();
-      c.translate(34, -40);
-      c.rotate(p.ear * 1.4);
-      for (final s in [-1, 1]) {
-        shape(
-          c,
-          Path()
-            ..moveTo(0, 0)
-            ..lineTo(s * 13.0, -9)
-            ..lineTo(s * 14.0, 7)
-            ..close(),
-          Palette.pink,
-          1.4,
-        );
+      if (p.backView > 0) c.restore();
+      if (accessory == 'bow') {
+        c.save();
+        c.translate(34, -40);
+        c.rotate(p.ear * 1.4);
+        for (final s in [-1, 1]) {
+          shape(
+            c,
+            Path()
+              ..moveTo(0, 0)
+              ..lineTo(s * 13.0, -9)
+              ..lineTo(s * 14.0, 7)
+              ..close(),
+            Palette.pink,
+            1.4,
+          );
+        }
+        c.drawCircle(Offset.zero, 4, fill(Palette.rose));
+        c.restore();
       }
-      c.drawCircle(Offset.zero, 4, fill(Palette.rose));
+      if (accessory == 'flower') {
+        for (var i = 0; i < 5; i++) {
+          final a = i * math.pi * 2 / 5;
+          c.drawCircle(
+            Offset(35 + math.cos(a) * 4, -28 + math.sin(a) * 4),
+            3,
+            fill(Palette.pink),
+          );
+        }
+        c.drawCircle(const Offset(35, -28), 2, fill(const Color(0xFFF6D798)));
+      }
       c.restore();
     }
-    if (accessory == 'flower') {
-      for (var i = 0; i < 5; i++) {
-        final a = i * math.pi * 2 / 5;
-        c.drawCircle(
-          Offset(35 + math.cos(a) * 4, -28 + math.sin(a) * 4),
-          3,
-          fill(Palette.pink),
-        );
-      }
-      c.drawCircle(const Offset(35, -28), 2, fill(const Color(0xFFF6D798)));
-    }
-    c.restore();
-    if (accessory == 'scarf') {
+    if (body && accessory == 'scarf') {
       c.save();
       bodyTransform(c, p);
       c.drawRRect(
@@ -237,7 +276,9 @@ class BearVectorRig {
   /// Equal-length bones, bent outward, capped to 64 logical px total reach.
   /// Exposed for contact tests so a requested target cannot hide overextension.
   static Offset paw(BearPose p, {bool near = true}) {
-    final shoulder = p.bodyPoint(Offset(near ? 23 : -23, -80));
+    final shoulder = p.anchor(
+      near ? BearAnchor.shoulder : BearAnchor.rightShoulder,
+    );
     final target = near
         ? p.anchor(BearAnchor.leftPaw)
         : p.anchor(BearAnchor.rightPaw);
@@ -252,38 +293,43 @@ class BearVectorRig {
     BearCharacter bear, {
     bool near = true,
     bool foreground = false,
+    List<BearPose> occluders = const [],
   }) {
     c.save();
     if (foreground) {
-      Offset at(double x, double y) => p.headPoint(Offset(x, y));
-      final profile = p.turn;
-      final head = Path()..moveTo(at(-54, -28).dx, at(-54, -28).dy);
-      void cubic(
-        double x1,
-        double y1,
-        double x2,
-        double y2,
-        double x3,
-        double y3,
-      ) {
-        final a = at(x1, y1), b = at(x2, y2), d = at(x3, y3);
-        head.cubicTo(a.dx, a.dy, b.dx, b.dy, d.dx, d.dy);
-      }
+      for (final pose in [p, ...occluders]) {
+        Offset at(double x, double y) => pose.headPoint(Offset(x, y));
+        final profile = pose.turn;
+        final head = Path()..moveTo(at(-54, -28).dx, at(-54, -28).dy);
+        void cubic(
+          double x1,
+          double y1,
+          double x2,
+          double y2,
+          double x3,
+          double y3,
+        ) {
+          final a = at(x1, y1), b = at(x2, y2), d = at(x3, y3);
+          head.cubicTo(a.dx, a.dy, b.dx, b.dy, d.dx, d.dy);
+        }
 
-      cubic(-41, -65, 37, -67, 56 - profile * 9, -27);
-      cubic(73 - profile * 20, 0, 67 - profile * 12, 43, 39, 51);
-      final q = at(0, 66), end = at(-37, 49);
-      head.quadraticBezierTo(q.dx, q.dy, end.dx, end.dy);
-      cubic(-66, 45, -68, 1, -54, -28);
-      head.close();
-      c.clipPath(
-        Path()
-          ..fillType = PathFillType.evenOdd
-          ..addRect(const Rect.fromLTWH(-1000, -1000, 2000, 2000))
-          ..addPath(head, Offset.zero),
-      );
+        cubic(-41, -65, 37, -67, 56 - profile * 9, -27);
+        cubic(73 - profile * 20, 0, 67 - profile * 12, 43, 39, 51);
+        final q = at(0, 66), end = at(-37, 49);
+        head.quadraticBezierTo(q.dx, q.dy, end.dx, end.dy);
+        cubic(-66, 45, -68, 1, -54, -28);
+        head.close();
+        c.clipPath(
+          Path()
+            ..fillType = PathFillType.evenOdd
+            ..addRect(const Rect.fromLTWH(-1000, -1000, 2000, 2000))
+            ..addPath(head, Offset.zero),
+        );
+      }
     }
-    final shoulder = p.bodyPoint(Offset(near ? 23 : -23, -80));
+    final shoulder = p.anchor(
+      near ? BearAnchor.shoulder : BearAnchor.rightShoulder,
+    );
     final target = paw(p, near: near), delta = target - shoulder;
     final distance = delta.distance.clamp(.01, 63.99);
     final perpendicular =
@@ -299,6 +345,8 @@ class BearVectorRig {
       ..quadraticBezierTo(elbow.dx, elbow.dy, target.dx, target.dy);
     c.drawPath(path, ink(18));
     c.drawPath(path, ink(13.4)..color = fur(bear));
+    // Distinct rounded paw cap follows the constrained endpoint.
+    c.drawCircle(target, 7.1, fill(fur(bear)));
     c.restore();
   }
 }

@@ -41,11 +41,19 @@ abstract final class BearArtwork {
     ('Z', []),
   ]);
 
-  static BearContour torso({double sit = 0, double breath = 0}) => BearContour([
-    ('M', [-22, -91]),
-    ('Q', [-37, -64 - breath, -29, -26]),
-    ('Q', [0, -13 + sit * 5, 30, -27]),
-    ('Q', [37, -64 - breath, 19, -92]),
+  static BearContour torso({
+    double sit = 0,
+    double breath = 0,
+    double recline = 0,
+    double embrace = 0,
+  }) => BearContour([
+    ('M', [-22, -91 + recline * 22]),
+    (
+      'Q',
+      [-37 - recline * 33, -64 - breath, -29 - recline * 35, -26 + recline * 9],
+    ),
+    ('Q', [-recline * 20, -13 + sit * 5, 30 + embrace * 8, -27 - recline * 4]),
+    ('Q', [37 + embrace * 6, -64 - breath, 19, -92 + recline * 21]),
     ('Z', []),
   ]);
 

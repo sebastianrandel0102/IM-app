@@ -103,11 +103,17 @@ accounts and project administrators, not end-to-end encrypted. Reveal does not
 prove a physical tap. Revocation denies old world access to clients; the project
 owner separately cleans retained server data. See [architecture and privacy](docs/architecture/README.md).
 
-The latest [character refinement audit](docs/animations/REFINEMENT.md) records
+The [shared contact-rig implementation](docs/animations/CONTACT_RIG.md) adds
+coordinated front/rear arm contacts, seated and curled sleeping silhouettes,
+distinct hug/cuddle tracks, independent cozy controls and anchor/bounds review.
+See its [current QA report](docs/animations/CONTACT_RIG_QA.md) and
+[contact-frame previews](artifacts/animations/contact-rig/contact-brown.png).
+
+The earlier [character refinement audit](docs/animations/REFINEMENT.md) records
 continuous facial transitions, neck/ear pivots, distance-driven foot motion,
 guarded input windows and authored contact events. Editable 1024×1024 bear
 masters are in `artifacts/animations/masters/`; the [artwork handoff](docs/animations/ARTWORK.md)
-explains the remaining reference-image and external mesh work. See the current
+explains the remaining reference-image and external mesh work. See the earlier
 [refinement QA report](docs/animations/REFINEMENT_QA.md) for verification.
 For local frame timings, run `flutter run --profile -t tool/animation_profile.dart -d chrome`
 or replace `chrome` with a connected Android device ID for native acceptance.

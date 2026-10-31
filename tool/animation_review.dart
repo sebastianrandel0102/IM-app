@@ -27,6 +27,8 @@ class _AnimationReviewState extends State<AnimationReview>
   double _speed = 1, _walk = 0;
   int _taps = 0;
   bool _playing = true, _hold = false, _reduced = false;
+  bool _anchors = false, _bounds = false;
+  final Set<BearSceneControl> _controls = {};
   String _variant = 'gentle';
   final _events = <BearAnimationEvent>[];
   BearPlayback _newPlayback() => BearPlayback(
@@ -60,6 +62,7 @@ class _AnimationReviewState extends State<AnimationReview>
     nextStopped: false,
     nextTaps: _taps,
     nextWalk: _walk,
+    nextControls: _controls,
   );
   void _restart() {
     _playback.dispose();
@@ -68,6 +71,7 @@ class _AnimationReviewState extends State<AnimationReview>
     _taps = 0;
     _hold = false;
     _walk = 0;
+    _controls.clear();
     _playing = true;
   }
 
@@ -132,6 +136,8 @@ class _AnimationReviewState extends State<AnimationReview>
                         variant: _variant,
                         stopped: false,
                         playback: _playback,
+                        showAnchors: _anchors,
+                        showBounds: _bounds,
                       ),
                     ),
                   ),
@@ -188,6 +194,16 @@ class _AnimationReviewState extends State<AnimationReview>
                           setState(() => _sender = _sender.other),
                     ),
                     FilterChip(
+                      label: const Text('Show anchors'),
+                      selected: _anchors,
+                      onSelected: (v) => setState(() => _anchors = v),
+                    ),
+                    FilterChip(
+                      label: const Text('Show bounds'),
+                      selected: _bounds,
+                      onSelected: (v) => setState(() => _bounds = v),
+                    ),
+                    FilterChip(
                       label: const Text('Reduced motion'),
                       selected: _reduced,
                       onSelected: (v) => setState(() {
@@ -213,6 +229,27 @@ class _AnimationReviewState extends State<AnimationReview>
                             }),
                       child: const Text('Tap / react'),
                     ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final control in BearSceneControl.values)
+                      FilterChip(
+                        label: Text(control.name),
+                        selected: _controls.contains(control),
+                        onSelected:
+                            _playback.progress < _playback.definition!.contactAt
+                            ? null
+                            : (value) => setState(() {
+                                if (value) {
+                                  _controls.add(control);
+                                } else {
+                                  _controls.remove(control);
+                                }
+                                _configure();
+                              }),
+                      ),
                   ],
                 ),
                 if ([

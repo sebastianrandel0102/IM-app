@@ -46,6 +46,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   int _taps = 0, _replay = 0;
   double _walk = 0;
   bool _inputReady = false;
+  bool _sceneReady = false;
+  final Set<BearSceneControl> _sceneControls = {};
   Duration? _lastTap;
   @override
   void initState() {
@@ -172,6 +174,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _taps = 0;
       _walk = 0;
       _holding = false;
+      _sceneReady = false;
+      _sceneControls.clear();
       _inputReady = false;
     });
     _lastTap = null;
@@ -298,8 +302,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       taps: _taps,
                       walk: _walk,
                       stopped: _stopped,
+                      controls: _sceneControls,
                       onComplete: _finish,
                       onContact: _contact,
+                      onEvent: (event) {
+                        if (mounted &&
+                            event == BearAnimationEvent.contactStarted) {
+                          setState(() => _sceneReady = true);
+                        }
+                      },
                       onInputReadyChanged: (ready) {
                         if (mounted && ready != _inputReady) {
                           setState(() => _inputReady = ready);
@@ -343,6 +354,47 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   ),
                 ),
                 const SizedBox(height: 16),
+                if ([
+                  AffectionType.comfortHug,
+                  AffectionType.cuddleTime,
+                  AffectionType.sleepTogether,
+                ].contains(payload.type))
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      for (final (control, label) in switch (payload.type) {
+                        AffectionType.comfortHug => [
+                          (BearSceneControl.headPat, 'Pat my head'),
+                          (BearSceneControl.stayBeside, 'Stay beside me'),
+                        ],
+                        AffectionType.cuddleTime => [
+                          (BearSceneControl.blanket, 'Cover with blanket'),
+                          (BearSceneControl.lamp, 'Turn off lamp'),
+                          (BearSceneControl.closer, 'Move closer'),
+                        ],
+                        _ => [
+                          (BearSceneControl.closer, 'Move closer'),
+                          (BearSceneControl.holdHands, 'Hold paws'),
+                        ],
+                      })
+                        FilterChip(
+                          label: Text(label),
+                          selected: _sceneControls.contains(control),
+                          onSelected: !_sceneReady || _stopped
+                              ? null
+                              : (value) => setState(() {
+                                  if (value) {
+                                    _sceneControls.add(control);
+                                  } else {
+                                    _sceneControls.remove(control);
+                                  }
+                                }),
+                        ),
+                    ],
+                  ),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
