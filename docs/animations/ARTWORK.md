@@ -1,5 +1,12 @@
 # Editable bear artwork handoff
 
+Update, 1 November 2026: four inline character/storyboard images are now
+available. The original two illustrations and separate reference PNG files are
+still unavailable. See [REFERENCE_INTAKE.md](REFERENCE_INTAKE.md) and
+[PHYSICS_IMPLEMENTATION.md](PHYSICS_IMPLEMENTATION.md) for the current reference
+decisions, corrected ear/mouth details and horizontal resting implementation.
+The older manual handoff below describes the earlier baseline.
+
 The app's existing artwork is the design source available in this workspace.
 The original two reference images are absent. Both generated masters preserve
 the current palette, oversized rounded head, tiny face, caramel muzzle and

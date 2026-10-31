@@ -303,6 +303,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       walk: _walk,
                       stopped: _stopped,
                       controls: _sceneControls,
+                      intensity: settings.animationIntensity,
+                      interactive: payload.type == AffectionType.sleepTogether,
+                      onLocalTap: _tap,
                       onComplete: _finish,
                       onContact: _contact,
                       onEvent: (event) {

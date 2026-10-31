@@ -314,6 +314,7 @@ class _ComposeScreenState extends ConsumerState<ComposeScreen> {
                 aspectRatio: 1.2,
                 child: BearScene(
                   action: _type,
+                  intensity: settings.animationIntensity,
                   variant: _variant.name,
                   reducedMotion:
                       settings.reducedMotion ||

@@ -272,6 +272,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: EdgeInsets.zero,
                   child: Column(
                     children: [
+                      ListTile(
+                        title: const Text('Animation intensity'),
+                        subtitle: Slider(
+                          label:
+                              '${(settings.animationIntensity * 100).round()}%',
+                          semanticFormatterCallback: (v) =>
+                              '${(v * 100).round()} percent',
+                          value: settings.animationIntensity,
+                          divisions: 4,
+                          onChanged: (v) => controller.update(
+                            settings.copyWith(animationIntensity: v),
+                          ),
+                        ),
+                      ),
                       SwitchListTile(
                         title: const Text('Little sounds'),
                         subtitle: const Text(

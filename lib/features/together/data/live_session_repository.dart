@@ -11,7 +11,9 @@ class LiveSessionRepository {
   Stream<LiveInteractionSession?> watch() => sessions
       .orderBy('updatedAt', descending: true)
       .limit(1)
-      .snapshots()
+      .snapshots(includeMetadataChanges: true)
+      // Begin from a confirmed server timestamp, not a pending local estimate.
+      .where((s) => !s.metadata.hasPendingWrites)
       .map(
         (s) => s.docs.isEmpty
             ? null
@@ -38,6 +40,7 @@ class LiveSessionRepository {
       tx.update(ref, {
         'currentAction': action,
         'eventSequence': (doc.data()!['eventSequence'] as int) + 1,
+        'actionSenderUid': affection.uid,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     });

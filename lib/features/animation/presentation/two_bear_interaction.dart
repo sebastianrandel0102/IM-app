@@ -78,11 +78,11 @@ abstract final class ContactAlignmentController {
     bool restingPaw = false,
   }) {
     final a = frame.left, b = frame.right;
-    final aNear = b.bodyPoint(Offset(-6 * b.armTurn, supporting ? -47 : -50));
+    final aNear = b.bodyPoint(Offset(-5 * b.armTurn, supporting ? -42 : -43));
     // A cuddle rests the recipient's paw on the sender's chest. A hug wraps
     // across to the outer flank. These are different contact drawings/targets.
     final bNear = a.bodyPoint(
-      Offset((restingPaw ? 22 : -6) * a.armTurn, restingPaw ? -43 : -48),
+      Offset((restingPaw ? 22 : -5) * a.armTurn, restingPaw ? -43 : -32),
     );
     final aFar = b.bodyPoint(Offset(36 * b.armTurn, -67));
     final bFar = a.bodyPoint(Offset(36 * a.armTurn, -66));
@@ -149,9 +149,11 @@ abstract final class TwoBearInteractionController {
     required int taps,
     required double input,
     required BearInteractionInput interaction,
+    BearSecondaryMotion? secondary,
+    double intensity = 1,
   }) {
     final a = frame.left, b = frame.right;
-    final motion = reduced ? 0.0 : 1.0;
+    final motion = reduced ? 0.0 : intensity;
     final comfort = action == AffectionType.comfortHug;
     final cuddle = action == AffectionType.cuddleTime;
     final spin = action == AffectionType.spinningHug;
@@ -169,8 +171,8 @@ abstract final class TwoBearInteractionController {
       BearPoseLibrary.apply(b, BearInteractionPose.sleepingTogether);
       a.eyes *= 1 - BearChoreography.ease(t, .14, .36);
       b.eyes *= 1 - BearChoreography.ease(t, .23, .50);
-      a.head = .025 * BearChoreography.ease(t, .16, .33);
-      b.head = -.035 * BearChoreography.ease(t, .24, .43);
+      a.head = .16 + .025 * BearChoreography.ease(t, .16, .33);
+      b.head = -.12 - .035 * BearChoreography.ease(t, .24, .43);
       final closer = math.max(
         interaction.closer,
         taps > 0 ? BearChoreography.ease(input, 0, .7) : 0.0,
@@ -196,6 +198,7 @@ abstract final class TwoBearInteractionController {
     if (action == AffectionType.goodnightKiss) {
       BearPoseLibrary.apply(b, BearInteractionPose.lyingDown);
       final sleepy = BearChoreography.ease(t, .06, .30);
+      b.head = .12 * sleepy;
       b.eyes *= 1 - sleepy;
       b.mouthOpen = BearChoreography.window(t, .07, .13, .20, .29) * .6;
       final kiss = BearChoreography.window(t, .34, .46, .56, .74);
@@ -241,6 +244,10 @@ abstract final class TwoBearInteractionController {
     a.root = Offset(a.root.dx + 34 * approach * release, 278);
     b.root = Offset(b.root.dx - 34 * approach * release, 278);
     a.embrace = b.embrace = reach;
+    // Corrective shoulder drawings place the front wraps below the large
+    // heads. Staggered arm heights read as an embrace rather than a neck band.
+    a.shoulderDrop = 36;
+    b.shoulderDrop = cuddle ? 36 : 47;
     a.headX = -30 * approach * release;
     b.headX = -30 * approach * release;
     a.head = .025 * reach;
@@ -255,6 +262,8 @@ abstract final class TwoBearInteractionController {
     final squeeze = BearChoreography.window(t, .45, .49, .54, .61);
     a.squash = 1 - .018 * squeeze * motion;
     b.squash = 1 - .015 * squeeze * motion;
+    a.squash -= (secondary?.left.compression.position ?? 0) * intensity;
+    b.squash -= (secondary?.right.compression.position ?? 0) * intensity;
     final sway =
         math.sin(seconds * (comfort ? .85 : 1.25)) * .006 * rest * motion;
     a.body += sway;

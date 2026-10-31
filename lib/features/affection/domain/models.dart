@@ -172,9 +172,14 @@ class LiveInteractionSession {
     required this.status,
     required this.action,
     required this.sequence,
+    this.actionSenderUid,
+    this.updatedAt,
   });
   final String id, initiatorUid, status, action;
   final int sequence;
+  final String? actionSenderUid;
+  final DateTime? updatedAt;
+  String get actorUid => actionSenderUid ?? initiatorUid;
   factory LiveInteractionSession.fromDoc(DocumentSnapshot<Json> doc) {
     final d = doc.data()!;
     return LiveInteractionSession(
@@ -183,6 +188,8 @@ class LiveInteractionSession {
       status: stringOf(d, 'status'),
       action: stringOf(d, 'currentAction'),
       sequence: d['eventSequence'] as int,
+      actionSenderUid: d['actionSenderUid'] as String?,
+      updatedAt: dateOf(d['updatedAt']),
     );
   }
 }

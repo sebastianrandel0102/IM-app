@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -56,6 +57,11 @@ class HomeScreen extends ConsumerWidget {
             aspectRatio: 1.17,
             child: BearScene(
               theme: theme,
+              interactive: true,
+              intensity: settings.animationIntensity,
+              onLocalReaction: (_) {
+                if (settings.haptics) HapticFeedback.selectionClick();
+              },
               reducedMotion:
                   settings.reducedMotion ||
                   MediaQuery.disableAnimationsOf(context),
@@ -67,6 +73,14 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        const Center(
+          child: Text(
+            'Tap a nose, stroke a head, or hold a paw.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Palette.muted),
+          ),
+        ),
+        const SizedBox(height: 8),
         Wrap(
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,

@@ -50,10 +50,10 @@ abstract final class BearArtwork {
     ('M', [-22, -91 + recline * 22]),
     (
       'Q',
-      [-37 - recline * 33, -64 - breath, -29 - recline * 35, -26 + recline * 9],
+      [-43 - recline * 27, -64 - breath, -33 - recline * 31, -26 + recline * 9],
     ),
-    ('Q', [-recline * 20, -13 + sit * 5, 30 + embrace * 8, -27 - recline * 4]),
-    ('Q', [37 + embrace * 6, -64 - breath, 19, -92 + recline * 21]),
+    ('Q', [-recline * 20, -13 + sit * 5, 34 + embrace * 4, -27 - recline * 4]),
+    ('Q', [43 + embrace * 3, -64 - breath, 19, -92 + recline * 21]),
     ('Z', []),
   ]);
 
@@ -61,6 +61,19 @@ abstract final class BearArtwork {
     ('M', [x - 7, 34 - smile * 2]),
     ('Q', [x - 4, 34 + smile * 5, x, 32]),
     ('Q', [x + 4, 34 + smile * 5, x + 8, 34 - smile * 2]),
+  ]);
+
+  static BearContour brownMouth(double x, double smile) => BearContour([
+    ('M', [x - 4.5, 37 - smile * .5]),
+    ('Q', [x - 1.5, 34, x, 31]),
+    ('Q', [x + 1.5, 34, x + 4.5, 37 - smile * .5]),
+  ]);
+
+  static BearContour earMark(double x, double y) => BearContour([
+    ('M', [x - 5, y - 2]),
+    ('C', [x - 1, y - 11, x + 9, y - 7, x + 6, y + 1]),
+    ('L', [x + 2, y + 5]),
+    ('Z', []),
   ]);
 
   static String _hex(Color color) =>
@@ -71,10 +84,11 @@ abstract final class BearArtwork {
   static String masterSvg(BearCharacter bear) {
     final fur = bear == BearCharacter.brown ? _hex(Palette.caramel) : '#FFFDFC';
     final inner = bear == BearCharacter.brown ? '#ECC28B' : '#F4B5C4';
+    final markInk = bear == BearCharacter.brown ? '#92602F' : '#FF8197';
     final ink = _hex(Palette.outline);
     return '''<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1024" height="1024" viewBox="0 0 1024 1024">
 <title>Bear With Me — ${bear.name} bear editable master</title>
-<desc>Generated from the existing Flutter vector rig. Original reference images were unavailable. Rigid parts, no mesh weights. All coordinates before the root transform match the live rig.</desc>
+<desc>Editable neutral layers from the Flutter vector rig, refined using the inline character sheets. Original illustrations were unavailable. Rigid parts, no mesh weights. Runtime includes additional corrective contact and resting contours.</desc>
 <g id="BearRoot" transform="translate(512 860) scale(4.2)" stroke="$ink" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="$fur">
   <ellipse id="GroundShadow" cx="0" cy="3" rx="36" ry="4" fill="$ink" fill-opacity="0.12" stroke="none"/>
   <g id="HipControl">
@@ -102,12 +116,13 @@ abstract final class BearArtwork {
       <circle id="LeftPaw" cx="27" cy="-39" r="6.7" fill="$fur" stroke="none"/>
     </g>
     <g id="HeadControl" transform="translate(0 -113)">
-      <g id="LeftEar" transform="translate(-36.5 -38)"><ellipse cy="0" rx="21.5" ry="24"/><ellipse rx="11.5" ry="14" fill="$inner" stroke="none"/></g>
-      <g id="RightEar" transform="translate(42.5 -38)"><ellipse rx="21.5" ry="24"/><ellipse rx="11.5" ry="14" fill="$inner" stroke="none"/></g>
+      <g id="LeftEar" transform="translate(-36.5 -38)"><ellipse cy="0" rx="21.5" ry="24"/></g>
+      <g id="RightEar" transform="translate(42.5 -38)"><ellipse rx="21.5" ry="24"/></g>
       <path id="Head" d="${head().svg}" stroke-width="3.1"/>
+      <path id="EarMark" d="${earMark(43, -39).svg}" fill="$inner" stroke="$markInk" stroke-width="1.7"/>
       <g fill="${_hex(Palette.pink)}" fill-opacity="${bear == BearCharacter.white ? .545 : .075}" stroke="none">
-        <ellipse id="LeftCheek" cx="-22" cy="28" rx="10.5" ry="9"/>
-        <ellipse id="RightCheek" cx="40" cy="28" rx="10.5" ry="9"/>
+        <ellipse id="LeftCheek" cx="-22" cy="28" rx="10.5" ry="10.5"/>
+        <ellipse id="RightCheek" cx="40" cy="28" rx="10.5" ry="10.5"/>
       </g>
       <g id="EyesNeutral" fill="$ink" stroke="none"><ellipse id="LeftEye" cx="-10" cy="16" rx="3" ry="4.5"/><ellipse id="RightEye" cx="28" cy="16" rx="3" ry="4.5"/></g>
       <g id="EyesClosed" display="none" fill="none" stroke-width="2.4"><path d="M-14 14 Q-10 18 -6 14"/><path d="M24 14 Q28 18 32 14"/></g>
@@ -117,7 +132,7 @@ abstract final class BearArtwork {
       ${bear == BearCharacter.brown ? '<ellipse id="Muzzle" cx="9" cy="28" rx="10.5" ry="13.5" fill="#F2D49C" stroke="none"/>' : ''}
       <path id="Nose" d="M5 23 Q9 21 13 23 L9 27 Z" fill="$ink" stroke="none"/>
       <path d="M9 26 L9 31" fill="none" stroke-width="2"/>
-      <path id="Mouth" d="${mouth(9, 1).svg}" fill="none" stroke-width="1.9"/>
+      <path id="Mouth" d="${(bear == BearCharacter.brown ? brownMouth(9, 1) : mouth(9, 1)).svg}" fill="none" stroke-width="1.9"/>
       <path id="MouthSad" d="${mouth(9, -1).svg}" fill="none" stroke-width="1.9" display="none"/>
       <ellipse id="MouthSurprised" cx="9" cy="35" rx="3.2" ry="4.5" display="none" fill="$ink" stroke="none"/>
       <path id="MouthKiss" d="M7 31 Q16 32 10 35 Q16 38 7 39" fill="none" stroke-width="1.9" display="none"/>

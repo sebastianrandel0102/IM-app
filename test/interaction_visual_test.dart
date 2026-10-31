@@ -15,7 +15,11 @@ void main() {
       final font = FontLoader('Nunito')
         ..addFont(rootBundle.load('assets/fonts/Nunito.ttf'));
       await font.load();
-      const dir = 'artifacts/animations/contact-rig';
+      const pass = String.fromEnvironment(
+        'ANIMATION_PASS',
+        defaultValue: 'contact-rig',
+      );
+      const dir = 'artifacts/animations/$pass';
       Directory(dir).createSync(recursive: true);
       Future<void> sheet(
         String name,

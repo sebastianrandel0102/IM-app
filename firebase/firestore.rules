@@ -174,7 +174,8 @@ service cloud.firestore {
             && ((resource.data.status == 'invited' && request.auth.uid != resource.data.initiatorUid && request.resource.data.status == 'active')
               || (resource.data.status in ['invited','active'] && request.resource.data.status == 'ended')))
           || (resource.data.status == 'active' && request.resource.data.status == 'active'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentAction','eventSequence','updatedAt'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentAction','eventSequence','updatedAt','actionSenderUid'])
+            && request.resource.data.actionSenderUid == request.auth.uid
             && request.resource.data.currentAction in ['wave','holdingHands','warmHug','happyDance','cuddleTime']
             && request.resource.data.eventSequence == resource.data.eventSequence + 1
             && request.time >= resource.data.updatedAt + duration.value(1,'s')));

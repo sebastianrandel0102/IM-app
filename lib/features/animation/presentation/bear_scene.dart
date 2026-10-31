@@ -2,12 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 
 import '../../../app/theme/app_theme.dart';
 import '../../affection/domain/affection_type.dart';
 import '../domain/gesture_definition.dart';
 import 'bear_choreography.dart';
 import 'bear_vector_rig.dart';
+import 'bear_physics.dart';
+import 'bear_touch.dart';
 import 'rive_bear_scene.dart';
 
 /// Original vector artwork, with editable Flutter choreography, not a Rive rig.
@@ -29,6 +32,11 @@ class BearScene extends StatefulWidget {
     this.onInputReadyChanged,
     this.onEvent,
     this.controls = const {},
+    this.intensity = 1,
+    this.interactive = false,
+    this.onLocalReaction,
+    this.onLocalTap,
+    this.initialElapsed = Duration.zero,
   });
   final AffectionType? action;
   final BearCharacter sender;
@@ -38,6 +46,11 @@ class BearScene extends StatefulWidget {
   final double walk;
   final String accessory, variant;
   final Set<BearSceneControl> controls;
+  final double intensity;
+  final bool interactive;
+  final ValueChanged<BearReaction>? onLocalReaction;
+  final VoidCallback? onLocalTap;
+  final Duration initialElapsed;
   final VoidCallback? onComplete, onContact;
   final ValueChanged<bool>? onInputReadyChanged;
   final ValueChanged<BearAnimationEvent>? onEvent;
@@ -52,9 +65,12 @@ class _BearSceneState extends State<BearScene>
   Duration? _lastTick;
   bool _foreground = true;
   bool? _lastReady;
+  BearStroke? _stroke;
+  Offset? _doubleTap;
   bool get _reduced =>
       widget.reducedMotion || MediaQuery.disableAnimationsOf(context);
-  bool get _staticPreview => _reduced && widget.onComplete == null;
+  bool get _staticPreview =>
+      _reduced && widget.onComplete == null && _playback.secondary.settled;
   @override
   void initState() {
     super.initState();
@@ -67,6 +83,9 @@ class _BearSceneState extends State<BearScene>
       onContact: () => widget.onContact?.call(),
       onEvent: (event) => widget.onEvent?.call(event),
     );
+    if (widget.initialElapsed > Duration.zero && widget.action != null) {
+      _playback.advance(widget.initialElapsed.inMicroseconds / 1e6);
+    }
     _ticker = createTicker((elapsed) {
       final previous = _lastTick;
       _lastTick = elapsed;
@@ -78,7 +97,10 @@ class _BearSceneState extends State<BearScene>
         _lastReady = ready;
         widget.onInputReadyChanged?.call(ready);
       }
-      if ((widget.stopped || _reduced) && _playback.settled) _syncTicker();
+      if ((widget.stopped || _reduced) &&
+          (_playback.settled || _staticPreview)) {
+        _syncTicker();
+      }
     });
   }
 
@@ -92,6 +114,7 @@ class _BearSceneState extends State<BearScene>
       nextTaps: widget.taps,
       nextWalk: widget.walk,
       nextControls: widget.controls,
+      nextIntensity: widget.intensity,
     );
     if (_staticPreview) _playback.showPreview();
     _syncTicker();
@@ -110,6 +133,7 @@ class _BearSceneState extends State<BearScene>
     if (!enabled && _ticker.isActive) {
       _ticker.stop();
       _lastTick = null;
+      _playback.secondary.suspend();
     }
   }
 
@@ -128,6 +152,10 @@ class _BearSceneState extends State<BearScene>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground) {
+      _stroke = null;
+      _playback.secondary.suspend();
+    }
     _syncTicker();
   }
 
@@ -177,7 +205,118 @@ class _BearSceneState extends State<BearScene>
         variant: widget.variant,
       );
     }
-    return scene;
+    if (!widget.interactive) return scene;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        BearTouchHit? hit(Offset at) {
+          final point = BearTouchGeometry.scenePoint(at, size);
+          return point == null
+              ? null
+              : BearTouchGeometry.hit(_playback.frame, point);
+        }
+
+        void react(BearTouchHit target, BearReaction reaction) {
+          if (reaction == BearReaction.pawHold) {
+            _playback.holdPaw(target.left, near: target.near);
+          } else {
+            _playback.react(target.left, reaction);
+          }
+          widget.onLocalReaction?.call(reaction);
+          _syncTicker();
+        }
+
+        return Semantics(
+          hint: widget.action == AffectionType.sleepTogether
+              ? 'Gently tap a bear for a sleepy response. Swipe to wake.'
+              : 'Tap a head, nose, cheek or paw. Stroke the head or belly. Hold a paw. Double tap to jump.',
+          customSemanticsActions: {
+            const CustomSemanticsAction(label: 'Pet the first bear'): () =>
+                react(
+                  const BearTouchHit(true, BearTouchZone.head),
+                  BearReaction.pet,
+                ),
+            const CustomSemanticsAction(label: 'Pet the second bear'): () =>
+                react(
+                  const BearTouchHit(false, BearTouchZone.head),
+                  BearReaction.pet,
+                ),
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (d) {
+              widget.onLocalTap?.call();
+              final target = hit(d.localPosition);
+              if (target == null) return;
+              final reaction = widget.action == AffectionType.sleepTogether
+                  ? BearReaction.sleepy
+                  : switch (target.zone) {
+                      BearTouchZone.head => BearReaction.curious,
+                      BearTouchZone.nose => BearReaction.boop,
+                      BearTouchZone.cheek => BearReaction.shy,
+                      BearTouchZone.paw => BearReaction.wave,
+                      BearTouchZone.belly => BearReaction.belly,
+                      BearTouchZone.back => BearReaction.relax,
+                    };
+              react(target, reaction);
+            },
+            onDoubleTapDown: (d) => _doubleTap = d.localPosition,
+            onDoubleTap: () {
+              widget.onLocalTap?.call();
+              final target = _doubleTap == null ? null : hit(_doubleTap!);
+              if (target != null) {
+                react(
+                  target,
+                  widget.action == AffectionType.sleepTogether
+                      ? BearReaction.sleepy
+                      : BearReaction.jump,
+                );
+              }
+            },
+            onLongPressStart: widget.action == null
+                ? (d) {
+                    final target = hit(d.localPosition);
+                    if (target?.zone == BearTouchZone.paw) {
+                      react(target!, BearReaction.pawHold);
+                    }
+                  }
+                : null,
+            onLongPressEnd: widget.action == null
+                ? (_) => _playback.releaseTouch()
+                : null,
+            onLongPressCancel: widget.action == null
+                ? _playback.releaseTouch
+                : null,
+            onPanStart: widget.action == null
+                ? (d) {
+                    final target = hit(d.localPosition);
+                    final point = BearTouchGeometry.scenePoint(
+                      d.localPosition,
+                      size,
+                    );
+                    _stroke = target == null || point == null
+                        ? null
+                        : BearStroke(target, point);
+                  }
+                : null,
+            onPanUpdate: widget.action == null
+                ? (d) {
+                    final point = BearTouchGeometry.scenePoint(
+                      d.localPosition,
+                      size,
+                    );
+                    if (point == null) return;
+                    final reaction = _stroke?.move(hit(d.localPosition), point);
+                    if (reaction != null) react(_stroke!.hit, reaction);
+                  }
+                : null,
+            onPanEnd: widget.action == null ? (_) => _stroke = null : null,
+            onPanCancel: widget.action == null ? () => _stroke = null : null,
+            child: scene,
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -289,12 +428,48 @@ class BearScenePainter extends CustomPainter {
       AffectionType.goodnightKiss,
       AffectionType.comfortHug,
     ].contains(action)) {
+      final couch =
+          action == AffectionType.cuddleTime ||
+          action == AffectionType.comfortHug;
+      if (couch) {
+        for (final x in [85.0, 305.0]) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(x, 288, 11, 17),
+              const Radius.circular(3),
+            ),
+            fill(const Color(0xFFA77E69)),
+          );
+        }
+        final back = RRect.fromRectAndRadius(
+          const Rect.fromLTWH(76, 213, 248, 77),
+          const Radius.circular(25),
+        );
+        canvas.drawRRect(back, fill(const Color(0xFFE2C9DD)));
+        canvas.drawRRect(back, stroke(const Color(0xFF997E91), 2));
+        line(
+          canvas,
+          const Offset(200, 228),
+          const Offset(200, 273),
+          const Color(0xFFC7A9C1),
+          1.3,
+        );
+        for (final x in [68.0, 304.0]) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromLTWH(x, 250, 28, 45),
+              const Radius.circular(13),
+            ),
+            fill(const Color(0xFFD6BAD0)),
+          );
+        }
+      }
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          const Rect.fromLTWH(76, 245, 248, 45),
+          Rect.fromLTWH(76, couch ? 273 : 245, 248, couch ? 22 : 45),
           const Radius.circular(18),
         ),
-        fill(const Color(0xFFC3B3CD)),
+        fill(couch ? const Color(0xFFD1B2C9) : const Color(0xFFC3B3CD)),
       );
     }
     if (action == AffectionType.sleepTogether ||
@@ -389,7 +564,13 @@ class BearScenePainter extends CustomPainter {
       final sleeping =
           action == AffectionType.sleepTogether ||
           action == AffectionType.goodnightKiss;
-      final y = 287 - frame.blanket * (sleeping ? 24 : 32);
+      final y =
+          287 -
+          frame.blanket * (sleeping ? 24 : 32) +
+          (reduced
+              ? 0
+              : (playback?.secondary.blanket.position ?? 0) *
+                    (playback?.intensity ?? 1));
       final blanket = Path()
         ..moveTo(76, y)
         ..quadraticBezierTo(190, y - 10 - frame.left.breath, 324, y + 2)
@@ -407,7 +588,13 @@ class BearScenePainter extends CustomPainter {
         );
       }
     }
-    final prop = frame.prop;
+    final prop = frame.prop.translate(
+      0,
+      reduced
+          ? 0
+          : (playback?.secondary.prop.position ?? 0) *
+                (playback?.intensity ?? 1),
+    );
     switch (action) {
       case AffectionType.flowerSurprise:
         if (frame.reveal > .01) {

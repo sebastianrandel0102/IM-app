@@ -111,13 +111,30 @@ class BearVectorRig {
         c.rotate(side * p.ear);
         c.translate(0, -18);
         oval(c, const Rect.fromLTWH(-21.5, -24, 43, 48), color, outline: true);
-        oval(c, const Rect.fromLTWH(-11.5, -14, 23, 28), inner);
         c.restore();
       }
       // Authored profile correction brings the nose to the edge of the face.
       // It changes the silhouette locally, rather than stretching the head.
       final profile = p.turn;
       shape(c, BearArtwork.head(profile).path, color, 3.1);
+      // This identifying mark sits on the readable front ear, after the head
+      // contour. Facing the partner must not blindly mirror the ear marking.
+      if (p.backView < .5) {
+        c.save();
+        final markX = 43 * p.facing;
+        c.translate(markX, -39);
+        c.rotate(p.ear * p.facing);
+        final mark = BearArtwork.earMark(0, 0).path;
+        c.drawPath(mark, fill(inner));
+        c.drawPath(
+          mark,
+          ink(1.7)
+            ..color = bear == BearCharacter.white
+                ? const Color(0xFFFF8197)
+                : const Color(0xFF92602F),
+        );
+        c.restore();
+      }
       // A rear-facing layer is exposed during the shared orbit. The face fades
       // behind the fur without scaling or warping the original head artwork.
       if (p.backView > 0) {
@@ -137,7 +154,7 @@ class BearVectorRig {
           Rect.fromCenter(
             center: Offset(cheekX, 28),
             width: 21 * (1 - p.cheek),
-            height: 18,
+            height: 21,
           ),
           Palette.pink.withValues(alpha: blush),
         );
@@ -154,7 +171,7 @@ class BearVectorRig {
           c,
           Rect.fromCenter(
             center: Offset(eyeX, 16),
-            width: 6,
+            width: bear == BearCharacter.white ? 7.2 : 6,
             height: .2 + (8.8 + p.surprise * 2) * open,
           ),
           Palette.outline.withValues(alpha: visibility * openInk),
@@ -196,7 +213,10 @@ class BearVectorRig {
       c.drawLine(Offset(faceX, 26), Offset(faceX, 31), ink(2));
       final normalMouth = (1 - p.mouthOpen) * (1 - p.pucker);
       c.drawPath(
-        BearArtwork.mouth(faceX, p.smile).path,
+        (bear == BearCharacter.brown
+                ? BearArtwork.brownMouth(faceX, p.smile)
+                : BearArtwork.mouth(faceX, p.smile))
+            .path,
         ink(1.9)..color = Palette.outline.withValues(alpha: normalMouth),
       );
       oval(
@@ -343,10 +363,11 @@ class BearVectorRig {
     final path = Path()
       ..moveTo(shoulder.dx, shoulder.dy)
       ..quadraticBezierTo(elbow.dx, elbow.dy, target.dx, target.dy);
-    c.drawPath(path, ink(18));
-    c.drawPath(path, ink(13.4)..color = fur(bear));
+    final width = 18 + p.embrace * 4;
+    c.drawPath(path, ink(width));
+    c.drawPath(path, ink(width - 4.6)..color = fur(bear));
     // Distinct rounded paw cap follows the constrained endpoint.
-    c.drawCircle(target, 7.1, fill(fur(bear)));
+    c.drawCircle(target, (width - 4.6) / 2, fill(fur(bear)));
     c.restore();
   }
 }

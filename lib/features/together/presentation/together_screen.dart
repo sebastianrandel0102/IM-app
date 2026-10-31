@@ -77,6 +77,13 @@ class _TogetherScreenState extends ConsumerState<TogetherScreen> {
                 child: BearScene(
                   key: ValueKey(session?.sequence),
                   action: session?.status == 'active' ? action : null,
+                  intensity: settings.animationIntensity,
+                  sender: session != null && repo != null
+                      ? repo.pair.bearFor(session.actorUid)
+                      : BearCharacter.brown,
+                  initialElapsed: session?.updatedAt == null
+                      ? Duration.zero
+                      : DateTime.now().difference(session!.updatedAt!),
                   reducedMotion:
                       settings.reducedMotion ||
                       MediaQuery.disableAnimationsOf(context),

@@ -9,30 +9,43 @@ class AppSettings {
     this.haptics = true,
     this.reducedMotion = false,
     this.notifications = true,
+    this.animationIntensity = 1,
   });
   final bool sound, haptics, reducedMotion, notifications;
+  final double animationIntensity;
   AppSettings copyWith({
     bool? sound,
     bool? haptics,
     bool? reducedMotion,
     bool? notifications,
+    double? animationIntensity,
   }) => AppSettings(
     sound: sound ?? this.sound,
     haptics: haptics ?? this.haptics,
     reducedMotion: reducedMotion ?? this.reducedMotion,
     notifications: notifications ?? this.notifications,
+    animationIntensity: (animationIntensity ?? this.animationIntensity).clamp(
+      0,
+      1,
+    ),
   );
   Map<String, dynamic> toJson() => {
     'sound': sound,
     'haptics': haptics,
     'reducedMotion': reducedMotion,
     'notifications': notifications,
+    'animationIntensity': animationIntensity,
   };
   factory AppSettings.fromJson(Map<String, dynamic> d) => AppSettings(
     sound: d['sound'] == true,
     haptics: d['haptics'] != false,
     reducedMotion: d['reducedMotion'] == true,
     notifications: d['notifications'] != false,
+    animationIntensity:
+        d['animationIntensity'] is num &&
+            (d['animationIntensity'] as num).isFinite
+        ? (d['animationIntensity'] as num).toDouble().clamp(0, 1)
+        : 1,
   );
 }
 
