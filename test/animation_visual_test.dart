@@ -21,6 +21,17 @@ void main() {
       defaultValue: 'refined',
     );
     const times = [.04, .22, .40, .54, .72, .96];
+    const width = int.fromEnvironment(
+      'ANIMATION_SCENE_WIDTH',
+      defaultValue: 200,
+    );
+    const height = width * 340 / 400;
+    const rowHeight = height + 22;
+    const variant = String.fromEnvironment(
+      'ANIMATION_VARIANT',
+      defaultValue: 'gentle',
+    );
+    const reduced = bool.fromEnvironment('ANIMATION_REDUCED');
     for (final category in [
       'Everyday',
       'Playful',
@@ -38,7 +49,7 @@ void main() {
         for (var row = 0; row < gestures.length; row++) {
           for (var col = 0; col < times.length; col++) {
             canvas.save();
-            canvas.translate(col * 200.0, row * 192.0 + 22);
+            canvas.translate(col * width.toDouble(), row * rowHeight + 22);
             BearScenePainter(
               t: times[col],
               action: gestures[row],
@@ -47,11 +58,11 @@ void main() {
               holding: false,
               taps: 0,
               walk: 0,
-              reduced: false,
+              reduced: reduced,
               accessory: 'none',
-              variant: 'gentle',
+              variant: variant,
               stopped: false,
-            ).paint(canvas, const Size(200, 170));
+            ).paint(canvas, const Size(width * 1.0, height));
             canvas.restore();
             final label = TextPainter(
               text: TextSpan(
@@ -63,14 +74,20 @@ void main() {
                 ),
               ),
               textDirection: TextDirection.ltr,
-            )..layout(maxWidth: 198);
-            label.paint(canvas, Offset(col * 200.0 + 4, row * 192.0 + 3));
+            )..layout(maxWidth: width - 2);
+            label.paint(
+              canvas,
+              Offset(col * width.toDouble() + 4, row * rowHeight + 3),
+            );
             label.dispose();
           }
         }
         final picture = recorder.endRecording();
         await tester.runAsync(() async {
-          final raster = await picture.toImage(1200, gestures.length * 192);
+          final raster = await picture.toImage(
+            width * times.length,
+            (gestures.length * rowHeight).ceil(),
+          );
           final bytes = await raster.toByteData(format: ui.ImageByteFormat.png);
           final dir = Directory('artifacts/animations/$pass');
           await dir.create(recursive: true);

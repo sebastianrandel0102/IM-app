@@ -422,82 +422,68 @@ class BearScenePainter extends CustomPainter {
       const Rect.fromLTWH(71, 270, 258, 35),
       night ? const Color(0xFFCCB9CF) : const Color(0xFFF2DED0),
     );
-    if ([
+    final onBed = [
       AffectionType.cuddleTime,
       AffectionType.sleepTogether,
       AffectionType.goodnightKiss,
-      AffectionType.comfortHug,
-    ].contains(action)) {
-      final couch =
-          action == AffectionType.cuddleTime ||
-          action == AffectionType.comfortHug;
-      if (couch) {
-        for (final x in [85.0, 305.0]) {
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(x, 288, 11, 17),
-              const Radius.circular(3),
-            ),
-            fill(const Color(0xFFA77E69)),
-          );
-        }
-        final back = RRect.fromRectAndRadius(
-          const Rect.fromLTWH(76, 213, 248, 77),
-          const Radius.circular(25),
+    ].contains(action);
+    if (onBed) {
+      _bed(canvas, night);
+      _pillows(canvas);
+    }
+    if (action == AffectionType.comfortHug) {
+      for (final x in [85.0, 305.0]) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, 288, 11, 17),
+            const Radius.circular(3),
+          ),
+          fill(const Color(0xFFA77E69)),
         );
-        canvas.drawRRect(back, fill(const Color(0xFFE2C9DD)));
-        canvas.drawRRect(back, stroke(const Color(0xFF997E91), 2));
-        line(
-          canvas,
-          const Offset(200, 228),
-          const Offset(200, 273),
-          const Color(0xFFC7A9C1),
-          1.3,
+      }
+      final back = RRect.fromRectAndRadius(
+        const Rect.fromLTWH(76, 213, 248, 77),
+        const Radius.circular(25),
+      );
+      canvas.drawRRect(back, fill(const Color(0xFFE2C9DD)));
+      canvas.drawRRect(back, stroke(const Color(0xFF997E91), 2));
+      line(
+        canvas,
+        const Offset(200, 228),
+        const Offset(200, 273),
+        const Color(0xFFC7A9C1),
+        1.3,
+      );
+      for (final x in [68.0, 304.0]) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(x, 250, 28, 45),
+            const Radius.circular(13),
+          ),
+          fill(const Color(0xFFD6BAD0)),
         );
-        for (final x in [68.0, 304.0]) {
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(
-              Rect.fromLTWH(x, 250, 28, 45),
-              const Radius.circular(13),
-            ),
-            fill(const Color(0xFFD6BAD0)),
-          );
-        }
       }
       canvas.drawRRect(
         RRect.fromRectAndRadius(
-          Rect.fromLTWH(76, couch ? 273 : 245, 248, couch ? 22 : 45),
+          const Rect.fromLTWH(76, 273, 248, 22),
           const Radius.circular(18),
         ),
-        fill(couch ? const Color(0xFFD1B2C9) : const Color(0xFFC3B3CD)),
+        fill(const Color(0xFFD1B2C9)),
       );
     }
-    if (action == AffectionType.sleepTogether ||
-        action == AffectionType.goodnightKiss) {
-      for (final p
-          in action == AffectionType.goodnightKiss
-              ? [frame.right]
-              : [frame.left, frame.right]) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(
-              center: p.anchor(BearAnchor.headCenter).translate(0, 49),
-              width: 132,
-              height: 30,
-            ),
-            const Radius.circular(14),
-          ),
-          fill(const Color(0xFFF7EDF3)),
-        );
-      }
-    }
     for (final p in [frame.left, frame.right]) {
+      final supported = onBed || action == AffectionType.comfortHug;
       oval(
         canvas,
         Rect.fromCenter(
-          center: Offset(p.root.dx, 280 + p.sit * 8),
-          width: 73 / p.squash,
-          height: 8 * p.squash,
+          center: Offset(
+            p.root.dx,
+            supported
+                ? p.root.dy + 2 + p.sit * 7 - p.recline * 12
+                : 280 + p.sit * 8,
+          ),
+          width: (73 + p.recline * 30) / p.squash,
+          height: (8 - p.recline * 3) * p.squash,
         ),
         const Color(0x27352320),
       );
@@ -560,34 +546,7 @@ class BearScenePainter extends CustomPainter {
       }
     }
     canvas.restore();
-    if (frame.blanket > .001) {
-      final sleeping =
-          action == AffectionType.sleepTogether ||
-          action == AffectionType.goodnightKiss;
-      final y =
-          287 -
-          frame.blanket * (sleeping ? 24 : 32) +
-          (reduced
-              ? 0
-              : (playback?.secondary.blanket.position ?? 0) *
-                    (playback?.intensity ?? 1));
-      final blanket = Path()
-        ..moveTo(76, y)
-        ..quadraticBezierTo(190, y - 10 - frame.left.breath, 324, y + 2)
-        ..lineTo(332, 291)
-        ..quadraticBezierTo(201, 299, 68, 289)
-        ..close();
-      shape(canvas, blanket, Palette.sage, 1.8);
-      for (var i = 0; i < 6; i++) {
-        line(
-          canvas,
-          Offset(106 + i * 36.0, y + 9),
-          Offset(101 + i * 36.0, 282),
-          const Color(0xFF93B39A),
-          1,
-        );
-      }
-    }
+    if (frame.blanket > .001) _blanket(canvas, frame);
     final prop = frame.prop.translate(
       0,
       reduced
@@ -671,6 +630,145 @@ class BearScenePainter extends CustomPainter {
     }
     if (showAnchors || showBounds) _debug(canvas, frame, scale);
     canvas.restore();
+  }
+
+  void _bed(Canvas c, bool night) {
+    const wood = Color(0xFFBD978A);
+    const woodInk = Color(0xFF9C7D79);
+    for (final x in [68.0, 319.0]) {
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, 292, 13, 19),
+          const Radius.circular(4),
+        ),
+        fill(wood),
+      );
+    }
+    final headboard = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(58, 162, 284, 124),
+      const Radius.circular(24),
+    );
+    c.drawRRect(
+      headboard,
+      fill(night ? const Color(0xFFC7B3CE) : const Color(0xFFE5C6C5)),
+    );
+    c.drawRRect(headboard, stroke(woodInk, 2));
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(68, 172, 264, 101),
+        const Radius.circular(18),
+      ),
+      stroke(const Color(0xFFF3E2E1), 1.5),
+    );
+    // The side wall and piping give the mattress real thickness above the rug.
+    final mattress = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(51, 242, 298, 59),
+      const Radius.circular(18),
+    );
+    c.drawRRect(mattress, fill(const Color(0xFFE8DCE6)));
+    c.drawRRect(mattress, stroke(const Color(0xFFB69CAD), 1.8));
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(53, 239, 294, 42),
+        const Radius.circular(18),
+      ),
+      fill(const Color(0xFFFFF5ED)),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(
+        const Rect.fromLTWH(51, 289, 298, 14),
+        const Radius.circular(6),
+      ),
+      fill(wood),
+    );
+    line(c, const Offset(63, 294), const Offset(337, 294), woodInk, 1);
+  }
+
+  void _pillows(Canvas c) {
+    final sitting = action == AffectionType.cuddleTime;
+    final centers = action == AffectionType.goodnightKiss
+        ? [const Offset(266, 233)]
+        : sitting
+        ? [const Offset(113, 234), const Offset(287, 234)]
+        : [const Offset(133, 233), const Offset(267, 233)];
+    for (final center in centers) {
+      c.save();
+      c.translate(center.dx, center.dy);
+      c.rotate((center.dx < 200 ? -1 : 1) * (sitting ? .12 : .045));
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: sitting ? 76 : 136,
+        height: sitting ? 64 : 45,
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(
+          rect.shift(const Offset(0, 4)),
+          const Radius.circular(16),
+        ),
+        fill(const Color(0x22000000)),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(16)),
+        fill(const Color(0xFFFFF8F3)),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(16)),
+        stroke(const Color(0xFFD5BBCA), 1.4),
+      );
+      c.drawRRect(
+        RRect.fromRectAndRadius(rect.deflate(5), const Radius.circular(12)),
+        stroke(const Color(0xFFEAD8E0), 1),
+      );
+      c.restore();
+    }
+  }
+
+  void _blanket(Canvas c, BearFrame frame) {
+    final sleeping = action != AffectionType.cuddleTime;
+    final left = action == AffectionType.goodnightKiss ? 193.0 : 53.0;
+    const right = 347.0;
+    final middle = (left + right) / 2;
+    final breath = reduced ? 0.0 : (frame.left.breath + frame.right.breath) / 2;
+    final y =
+        (sleeping ? 270 : 284) -
+        frame.blanket * (sleeping ? 32 : 38) +
+        (reduced
+            ? 0
+            : (playback?.secondary.blanket.position ?? 0) *
+                  (playback?.intensity ?? 1));
+    final quilt = Path()
+      ..moveTo(left + 6, y)
+      ..quadraticBezierTo(middle, y - 9 - breath, right - 6, y + 1)
+      ..quadraticBezierTo(right + 1, y + 16, right, 292)
+      ..quadraticBezierTo(middle, 307, left, 293)
+      ..quadraticBezierTo(left - 1, y + 16, left + 6, y)
+      ..close();
+    shape(c, quilt, Palette.sage, 1.8);
+    c.save();
+    c.clipPath(quilt);
+    // A folded top edge sits over the bodies; the quilt hangs over the bed edge.
+    final fold = Path()
+      ..moveTo(left, y - 3)
+      ..quadraticBezierTo(middle, y - 11 - breath, right, y - 2)
+      ..lineTo(right, y + 12)
+      ..quadraticBezierTo(middle, y + 3 - breath, left, y + 12)
+      ..close();
+    c.drawPath(fold, fill(const Color(0xFFD4E3C9)));
+    c.drawPath(
+      Path()
+        ..moveTo(left, y + 12)
+        ..quadraticBezierTo(middle, y + 3 - breath, right, y + 12),
+      stroke(const Color(0xFF93B39A), 1.2),
+    );
+    for (var x = left + 24; x < right - 8; x += 34) {
+      c.drawPath(
+        Path()
+          ..moveTo(x, y + 20)
+          ..quadraticBezierTo(x - 4, 278, x + 2, 298),
+        stroke(const Color(0xFF9DBB9E), .9),
+      );
+    }
+    c.restore();
   }
 
   // Only the standalone workbench exposes these painter flags.

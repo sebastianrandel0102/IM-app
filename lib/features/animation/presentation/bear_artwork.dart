@@ -64,9 +64,9 @@ abstract final class BearArtwork {
   ]);
 
   static BearContour brownMouth(double x, double smile) => BearContour([
-    ('M', [x - 4.5, 37 - smile * .5]),
-    ('Q', [x - 1.5, 34, x, 31]),
-    ('Q', [x + 1.5, 34, x + 4.5, 37 - smile * .5]),
+    ('M', [x - 5.5, 34 - smile * 1.5]),
+    ('Q', [x - 3.5, 34 + smile * 4, x, 32]),
+    ('Q', [x + 3.5, 34 + smile * 4, x + 5.5, 34 - smile * 1.5]),
   ]);
 
   static BearContour earMark(double x, double y) => BearContour([

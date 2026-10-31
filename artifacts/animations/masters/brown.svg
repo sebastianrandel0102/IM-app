@@ -44,7 +44,7 @@
       <ellipse id="Muzzle" cx="9" cy="28" rx="10.5" ry="13.5" fill="#F2D49C" stroke="none"/>
       <path id="Nose" d="M5 23 Q9 21 13 23 L9 27 Z" fill="#352320" stroke="none"/>
       <path d="M9 26 L9 31" fill="none" stroke-width="2"/>
-      <path id="Mouth" d="M4.5 36.5 Q7.5 34.0 9.0 31.0 Q10.5 34.0 13.5 36.5" fill="none" stroke-width="1.9"/>
+      <path id="Mouth" d="M3.5 32.5 Q5.5 38.0 9.0 32.0 Q12.5 38.0 14.5 32.5" fill="none" stroke-width="1.9"/>
       <path id="MouthSad" d="M2.0 36.0 Q5.0 29.0 9.0 32.0 Q13.0 29.0 17.0 36.0" fill="none" stroke-width="1.9" display="none"/>
       <ellipse id="MouthSurprised" cx="9" cy="35" rx="3.2" ry="4.5" display="none" fill="#352320" stroke="none"/>
       <path id="MouthKiss" d="M7 31 Q16 32 10 35 Q16 38 7 39" fill="none" stroke-width="1.9" display="none"/>
