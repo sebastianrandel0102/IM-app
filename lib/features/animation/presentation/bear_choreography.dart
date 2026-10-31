@@ -4,26 +4,34 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../affection/domain/affection_type.dart';
+import '../domain/gesture_definition.dart';
+import 'bear_motion.dart';
 
 enum BearStage {
   idle,
   attention,
   anticipation,
   approach,
+  contactPreparation,
   contact,
   reaction,
   hold,
   recovery,
   complete,
+  cancelled,
 }
 
 enum BearAnchor {
+  headCenter,
+  leftCheek,
+  rightCheek,
   cheek,
   forehead,
   nose,
   leftPaw,
   rightPaw,
   shoulder,
+  rightShoulder,
   torso,
   hug,
   seat,
@@ -39,6 +47,9 @@ class BearPose {
   double squash = 1, sit = 0, lie = 0, step = 0;
   double eyes = 1, gaze = 0, smile = 1, blush = .15, surprise = 0;
   double ear = 0, breath = 0, cheek = 0, turn = 0;
+  double mouthOpen = 0, pucker = 0, happyEyes = 0;
+  double gaitPhase = 0, gaitWeight = 0;
+  double gaitDirection = 1;
   Offset nearPaw = const Offset(27, -39), farPaw = const Offset(-28, -40);
   Offset? nearTarget, farTarget;
 
@@ -54,9 +65,11 @@ class BearPose {
 
   Offset headPoint(Offset p) {
     final origin = bodyPoint(Offset(headX, -113 + headY - breath));
+    // Neck pivot at the base of the head, shared with the drawing transform.
+    final y = p.dy - 50;
     final local = Offset(
-      (p.dx * math.cos(head) - p.dy * math.sin(head)) * facing,
-      p.dx * math.sin(head) + p.dy * math.cos(head),
+      (p.dx * math.cos(head) - y * math.sin(head)) * facing,
+      50 + p.dx * math.sin(head) + y * math.cos(head),
     );
     final a = body + lie;
     return origin +
@@ -67,12 +80,20 @@ class BearPose {
   }
 
   Offset anchor(BearAnchor a) => switch (a) {
+    BearAnchor.headCenter => headPoint(Offset.zero),
+    BearAnchor.leftCheek => headPoint(
+      Offset((9 + turn * 43 - 31).clamp(-42, 48), 28),
+    ),
+    BearAnchor.rightCheek => headPoint(
+      Offset((9 + turn * 43 + 31).clamp(-42, 48), 28),
+    ),
     BearAnchor.cheek => headPoint(const Offset(60, 24)),
     BearAnchor.forehead => headPoint(const Offset(35, -45)),
     BearAnchor.nose => headPoint(Offset(9 + turn * 43, 25)),
     BearAnchor.leftPaw => nearTarget ?? bodyPoint(nearPaw),
     BearAnchor.rightPaw => farTarget ?? bodyPoint(farPaw),
     BearAnchor.shoulder => bodyPoint(const Offset(23, -80)),
+    BearAnchor.rightShoulder => bodyPoint(const Offset(-23, -80)),
     BearAnchor.torso => bodyPoint(const Offset(0, -54)),
     BearAnchor.hug => bodyPoint(const Offset(28, -59)),
     BearAnchor.seat => bodyPoint(const Offset(0, -18)),
@@ -116,6 +137,12 @@ class BearPose {
       ..breath = mix(a.breath, b.breath)
       ..cheek = mix(a.cheek, b.cheek)
       ..turn = mix(a.turn, b.turn)
+      ..mouthOpen = mix(a.mouthOpen, b.mouthOpen)
+      ..pucker = mix(a.pucker, b.pucker)
+      ..happyEyes = mix(a.happyEyes, b.happyEyes)
+      ..gaitPhase = mix(a.gaitPhase, b.gaitPhase)
+      ..gaitWeight = mix(a.gaitWeight, b.gaitWeight)
+      ..gaitDirection = mix(a.gaitDirection, b.gaitDirection)
       ..nearPaw = Offset.lerp(a.nearPaw, b.nearPaw, t)!
       ..farPaw = Offset.lerp(a.farPaw, b.farPaw, t)!
       ..nearTarget = Offset.lerp(
@@ -161,11 +188,8 @@ class BearFrame {
 
 class BearChoreography {
   static const contactTime = .46, holdTime = .64, recoveryTime = .78;
-  static bool canHold(AffectionType? a) => [
-    AffectionType.warmHug,
-    AffectionType.comfortHug,
-    AffectionType.cuddleTime,
-  ].contains(a);
+  static bool canHold(AffectionType? a) =>
+      a != null && BearGestureDefinition.of(a).supportsHold;
   static Duration duration(AffectionType? a, String variant) {
     final seconds = switch (a) {
       AffectionType.noseBoop => 4.4,
@@ -205,6 +229,8 @@ class BearChoreography {
       ? BearStage.anticipation
       : t < .43
       ? BearStage.approach
+      : t < .46
+      ? BearStage.contactPreparation
       : t < .52
       ? BearStage.contact
       : t < .68
@@ -226,10 +252,8 @@ class BearChoreography {
     return x < 0 ? 0 : math.sin(x * 65) * math.exp(-x * 19) * strength;
   }
 
-  static double blink(double seconds, double offset) {
-    final p = (seconds + offset) % 4.7;
-    return 1 - window(p, 3.72, 3.78, 3.83, 3.92);
-  }
+  static double blink(double seconds, double offset) =>
+      BearMotion.blink(seconds, offset);
 
   static BearFrame sample({
     AffectionType? action,
@@ -239,6 +263,8 @@ class BearChoreography {
     int taps = 0,
     double walk = 0,
     double locomotion = 0,
+    double stride = 0,
+    double travelDirection = 1,
     double input = 0,
     bool stopped = false,
     String variant = 'gentle',
@@ -301,6 +327,9 @@ class BearChoreography {
         amplitude *
         (walksIn ? 1 : 0);
     l.step = steps * 3;
+    l.gaitPhase = ease(t, .22, .43) * math.pi * 4;
+    l.gaitWeight =
+        window(t, .22, .26, .39, .43) * amplitude * (walksIn ? 1 : 0);
     l.root = l.root.translate(0, -steps.abs() * 1.5);
     l.farPaw = l.farPaw.translate(steps * 2, 0);
 
@@ -317,6 +346,8 @@ class BearChoreography {
         final squeeze = contact + impact * .025;
         l.root = l.root.translate(28 * contact, 0);
         r.root = r.root.translate(-28 * contact, 0);
+        r.gaitPhase = l.gaitPhase + math.pi;
+        r.gaitWeight = l.gaitWeight;
         // Outward neck corrections protect the original large head silhouettes.
         l.headX = -28 * contact;
         r.headX = -28 * contact;
@@ -341,6 +372,8 @@ class BearChoreography {
           r.smile = -1 + react * 2;
           r.headY = 8 * (1 - react);
           r.ear -= .045 * (1 - react);
+          r.body -= .025 * (1 - react);
+          r.blush = .15 + .28 * react;
         }
         if (cozy) {
           l.sit = approach;
@@ -352,6 +385,22 @@ class BearChoreography {
               math.pi * 2 * ease(t, .50, .80, Curves.easeInOutSine) * amplitude;
           l.step += math.sin(t * 28) * active * 2 * amplitude;
           r.step = -l.step;
+          // A grounded turn around a shared vertical axis. Project the orbit
+          // into scene space; the heads stay upright instead of somersaulting.
+          final orbit = math.sin(frame.spin);
+          final projection = math.cos(frame.spin);
+          l.root = Offset(
+            200 + (l.root.dx - 200) * projection,
+            l.root.dy - orbit * 6,
+          );
+          r.root = Offset(
+            200 + (r.root.dx - 200) * projection,
+            r.root.dy + orbit * 6,
+          );
+          l.headX *= projection;
+          r.headX *= projection;
+          l.body += orbit * .035;
+          r.body -= orbit * .035;
         }
         l.nearTarget = Offset.lerp(
           l.bodyPoint(Offset(27 + 20 * welcome, -39 - 5 * welcome)),
@@ -363,6 +412,19 @@ class BearChoreography {
           l.bodyPoint(const Offset(26, -49)),
           contact,
         );
+        if (action == AffectionType.spinningHug) {
+          final side = math.cos(frame.spin).abs();
+          l.nearTarget = Offset.lerp(
+            l.nearTarget,
+            Offset(200 + 14 * side, 228),
+            contact,
+          );
+          r.nearTarget = Offset.lerp(
+            r.nearTarget,
+            Offset(200 - 14 * side, 228),
+            contact,
+          );
+        }
       case AffectionType.cheekKiss:
       case AffectionType.foreheadKiss:
       case AffectionType.goodnightKiss:
@@ -384,6 +446,7 @@ class BearChoreography {
         l.root = l.root.translate((target.dx - nose.dx) * kiss, 0);
         l.headY += (target.dy - nose.dy) * kiss;
         l.eyes *= 1 - kiss;
+        l.pucker = kiss;
         r.eyes *= 1 - (forehead ? kiss : react * release);
         r.surprise = forehead ? 0 : window(t, .46, .49, .52, .59);
         r.cheek = kiss * .07;
@@ -394,6 +457,8 @@ class BearChoreography {
           r.sit = .65;
           frame.blanket = ease(t, .15, .37);
           frame.dim = ease(t, .7, .96) * .3 + (taps.isOdd ? .18 : 0);
+          r.eyes *= 1 - ease(t, .55, .80);
+          r.head = r.head + .08 * ease(t, .72, .94);
         }
       case AffectionType.holdingHands:
       case AffectionType.highFive:
@@ -402,8 +467,18 @@ class BearChoreography {
             ? window(t, .22, .46, .57, .83)
             : ease(t, .22, .46, const Cubic(.35, 0, .25, 1));
         final target = Offset(200, high ? 166 : 225);
-        l.nearTarget = Offset.lerp(l.bodyPoint(l.nearPaw), target, reach);
-        r.nearTarget = Offset.lerp(r.bodyPoint(r.nearPaw), target, reach);
+        final prepare = high ? window(t, .12, .23, .27, .42) : 0.0;
+        final arc = high ? math.sin(reach * math.pi) * 9 : 0.0;
+        l.nearTarget = Offset.lerp(
+          l.bodyPoint(l.nearPaw.translate(-9 * prepare, -12 * prepare)),
+          target,
+          reach,
+        )!.translate(0, -arc);
+        r.nearTarget = Offset.lerp(
+          r.bodyPoint(r.nearPaw.translate(-9 * prepare, -12 * prepare)),
+          target,
+          reach,
+        )!.translate(0, -arc);
         l.squash = 1 - impact * .025;
         r.squash = 1 - impact * .025;
         if (high) {
@@ -420,6 +495,12 @@ class BearChoreography {
           r.root = r.root.translate(walk, -walking.abs());
           l.nearTarget = l.nearTarget!.translate(walk, -walking.abs());
           r.nearTarget = l.nearTarget;
+          l.gaitPhase = stride;
+          r.gaitPhase = stride;
+          l.gaitWeight = locomotion * reach * amplitude;
+          r.gaitWeight = l.gaitWeight;
+          l.gaitDirection = travelDirection * l.facing;
+          r.gaitDirection = travelDirection * r.facing;
         }
       case AffectionType.headPat:
       case AffectionType.noseBoop:
@@ -463,6 +544,7 @@ class BearChoreography {
         r.eyes *= 1 - active;
         r.ear += (pat ? settle(t, .46, .09) : impact * .04) * amplitude;
         r.surprise = pat || wipe ? 0 : window(t, .45, .48, .51, .58);
+        r.mouthOpen = r.surprise * .7;
         r.smile = wipe ? -1 + react * 2 : 1;
         frame.tear = wipe ? 1 - ease(t, .50, .65) : 0;
         frame.prop = r
@@ -477,6 +559,7 @@ class BearChoreography {
           lift,
         );
         l.eyes *= 1 - lift;
+        l.pucker = lift;
         final flight = math.max(
           ease(t, .36, .66, Curves.easeInOutSine),
           taps > 0 ? ease(input, 0, .45) : 0.0,
@@ -492,6 +575,7 @@ class BearChoreography {
           window(t, .33, .39, .72, .82),
           taps > 0 ? window(input, 0, .08, .65, .9) : 0.0,
         );
+        r.gaze = ((frame.prop.dx - r.root.dx) / -34).clamp(-2.5, 2.5);
         r.head = -.05 * react;
         r.eyes *=
             1 -
@@ -512,6 +596,7 @@ class BearChoreography {
         r.farPaw = Offset(-28 - 42 * active, -40 - 52 * active);
         r.squash = 1 + .025 * active;
         r.smile = wake;
+        r.mouthOpen = window(t, .46, .53, .60, .70) * .75;
         l.root = l.root.translate(30 * approach, 0);
         l.headX = -30 * approach;
         l.nearTarget = Offset.lerp(
@@ -533,6 +618,9 @@ class BearChoreography {
           p.nearPaw = Offset(31 + rhythm * 7, -59 - rhythm * 14);
           p.farPaw = Offset(-31 - rhythm * 7, -59 + rhythm * 14);
           p.ear += math.sin(beat - lag - .4) * active * .04 * amplitude;
+          p.happyEyes = active;
+          p.eyes *= 1 - active * .78;
+          p.mouthOpen = active * .45;
         }
       case AffectionType.piggybackRide:
         final attached = ease(t, .28, .50);
@@ -555,6 +643,12 @@ class BearChoreography {
         l.step =
             math.sin(seconds * 5.2) * attached * locomotion * 4 * amplitude;
         r.step = l.step * .6;
+        l.gaitPhase = stride;
+        l.gaitWeight = attached * locomotion * amplitude;
+        l.gaitDirection = travelDirection * l.facing;
+        r.gaitWeight = 0;
+        r.breath *= .6;
+        r.head += settle(t, .52, .025) * amplitude;
         r.ear +=
             math.sin(seconds * 5.2 - .4) *
             locomotion *
@@ -574,20 +668,29 @@ class BearChoreography {
         r.head = -wiggle * .035;
         r.eyes *= 1 - active;
         r.surprise = active * .25;
+        r.mouthOpen = active * .85;
+        r.happyEyes = active;
         r.nearPaw = Offset(30 + 8 * active, -44 - active * 20);
       case AffectionType.sleepTogether:
         final resting = ease(t, .12, .43);
         final closer = taps > 0 ? 4 * ease(input, 0, .7) : 0.0;
         l.sit = resting;
         r.sit = resting;
-        l.lie = -.55 * resting;
-        r.lie = .55 * resting;
-        l.root = l.root.translate(26 * resting + closer, 8 * resting);
-        r.root = r.root.translate(-26 * resting - closer, 8 * resting);
-        l.headX = -12 * resting;
-        r.headX = -12 * resting;
+        l.lie = -.68 * resting;
+        r.lie = .68 * resting;
+        l.root = l.root.translate(32 * resting + closer, 8 * resting);
+        r.root = r.root.translate(-32 * resting - closer, 8 * resting);
+        // Keep the sleeping faces above the blanket while the torsos recline.
+        // This neck correction is local; joined paw targets stay unchanged.
+        l.headY = -18 * resting;
+        r.headY = -18 * resting;
         l.eyes *= 1 - resting;
         r.eyes *= 1 - ease(t, .22, .50);
+        l.ear +=
+            .018 *
+            window(seconds % 7.3, 4.1, 4.2, 4.3, 4.6) *
+            resting *
+            amplitude;
         frame.blanket = resting;
         frame.dim = resting * .2;
         final join = Offset(200, 245);
@@ -596,8 +699,10 @@ class BearChoreography {
       case AffectionType.iMissYou:
         r.sit = 1;
         r.smile = -1 + react * 2;
-        r.gaze = -3 * (1 - react);
+        final notice = ease(t, .32, .46);
+        r.gaze = -3 + 5 * notice;
         r.head = -.08 * (1 - react);
+        r.headY = 4 * (1 - react);
         r.ear -= .05 * (1 - react);
         l.sit = approach;
         l.root = l.root.translate(10 * approach, 0);
@@ -666,11 +771,17 @@ class BearChoreography {
           receive,
         );
         r.surprise = window(t, .50, .54, .62, .72);
+        r.mouthOpen = r.surprise * .65;
         r.head = -.06 * receive;
         l.blush += shy ? offer * .35 : 0;
         frame.reveal = flower || shy ? offer : 1;
         if (gift) {
-          frame.prop = const Offset(200, 252);
+          final shake =
+              math.sin(t * 135) *
+              window(t, .43, .48, .54, .58) *
+              1.2 *
+              amplitude;
+          frame.prop = Offset(200 + shake, 252);
           frame.reveal = math.max(
             ease(t, .58, .68),
             taps > 0 ? ease(input, 0, .65) : 0.0,
@@ -692,13 +803,20 @@ class BearChoreography {
     r.ear += settle(t, .51, .04) * amplitude;
     l.blush = l.blush.clamp(0, 1);
     r.blush = r.blush.clamp(0, 1);
+    // Expression tracks remain independent of blinks and torso deformation.
+    // Calm gestures retain tiny mouths; surprise/laughter use local artwork.
+    r.mouthOpen = math.max(r.mouthOpen, r.surprise * .55);
     if (stopped) {
       l.step = 0;
       r.step = 0;
     }
     // Returning affection swaps the acting roles while the colored actors stay
     // on their original sides. This is forward choreography, never reverse time.
-    if ((action == AffectionType.cheekKiss && taps.isOdd) ||
+    if (([
+              AffectionType.cheekKiss,
+              AffectionType.foreheadKiss,
+            ].contains(action) &&
+            taps.isOdd) ||
         (action == AffectionType.noseBoop && (taps ~/ 3).isOdd)) {
       final reverse = BearFrame(r.mirrored(), l.mirrored())
         ..prop = Offset(400 - frame.prop.dx, frame.prop.dy)
@@ -719,21 +837,50 @@ class BearPlayback extends ChangeNotifier {
     this.reduced = false,
     this.onComplete,
     this.onContact,
+    this.onEvent,
   });
   AffectionType? action;
   String variant;
   bool reduced, holding = false, stopped = false, completed = false;
   VoidCallback? onComplete, onContact;
+  ValueChanged<BearAnimationEvent>? onEvent;
   double progress = 0, seconds = 0, input = 1, walk = 0, walkTarget = 0;
   double locomotion = 0;
+  double stride = 0;
+  double travelDirection = 1;
   int taps = 0;
   bool _contactSent = false;
+  int _seenTaps = 0;
+  final Set<BearAnimationEvent> _events = {};
+  bool _inHold = false;
   BearFrame? _previous;
   double _blend = 1;
   Duration get duration => BearChoreography.duration(action, variant);
   bool get settled =>
       completed && input >= 1 && _blend >= 1 && (walkTarget - walk).abs() < .01;
-  BearStage get stage => BearChoreography.stage(progress, holding: holding);
+  BearStage get stage => stopped
+      ? BearStage.cancelled
+      : BearChoreography.stage(progress, holding: holding);
+  BearGestureDefinition? get definition =>
+      action == null ? null : BearGestureDefinition.of(action!);
+  bool get canReact {
+    final d = definition;
+    if (d == null || holding || stopped || progress < d.inputAt) return false;
+    if (action == AffectionType.highFive) {
+      return progress <= .57 || progress >= .78;
+    }
+    return d.touch != BearTouch.hold;
+  }
+
+  void _event(BearAnimationEvent event) {
+    if (_events.add(event)) onEvent?.call(event);
+  }
+
+  void _resetEvents() {
+    _events.clear();
+    _contactSent = false;
+  }
+
   void showPreview() {
     progress = .54;
     _previous = null;
@@ -751,6 +898,8 @@ class BearPlayback extends ChangeNotifier {
       taps: taps,
       walk: walk,
       locomotion: locomotion,
+      stride: stride,
+      travelDirection: travelDirection,
       input: input,
       stopped: stopped,
       variant: variant,
@@ -774,7 +923,11 @@ class BearPlayback extends ChangeNotifier {
     required double nextWalk,
   }) {
     final changed = action != nextAction || variant != nextVariant;
-    final tapped = nextTaps != taps && !holding && !nextHolding;
+    // Consume rejected edges as well, so an early tap cannot fire later when
+    // a parent rebuild happens to occur inside the action window.
+    final tapped =
+        !changed && nextTaps != _seenTaps && canReact && !nextHolding;
+    _seenTaps = nextTaps;
     final stopping = nextStopped && !stopped;
     if (changed ||
         tapped ||
@@ -789,41 +942,48 @@ class BearPlayback extends ChangeNotifier {
     reduced = nextReduced;
     holding = nextHolding && BearChoreography.canHold(action);
     stopped = nextStopped;
-    walkTarget = nextWalk.clamp(-25, 25);
+    if (definition?.touch == BearTouch.walk && canReact) {
+      walkTarget = nextWalk.clamp(-25, 25);
+    }
     if (changed) {
       progress = 0;
       completed = false;
-      _contactSent = false;
+      taps = 0;
+      seconds = 0;
+      stride = 0;
+      input = 1;
+      walk = walkTarget = locomotion = 0;
+      _inHold = false;
+      _resetEvents();
     }
     if (tapped) {
       input = 0;
-      if ([
-        AffectionType.cheekKiss,
-        AffectionType.foreheadKiss,
-        AffectionType.noseBoop,
-        AffectionType.headPat,
-        AffectionType.highFive,
-        AffectionType.spinningHug,
-        AffectionType.comfortHug,
-        AffectionType.happyDance,
-        AffectionType.playfulTickle,
-      ].contains(action)) {
-        progress = .18;
+      taps++;
+      final repeat = definition?.repeatFrom;
+      if (repeat != null) {
+        progress = action == AffectionType.highFive && progress < .57
+            ? math.max(progress, .37)
+            : repeat;
         completed = false;
-        _contactSent = false;
+        _resetEvents();
       }
     }
     if (holding && completed) {
       progress = .42;
       completed = false;
-      _contactSent = false;
+      _resetEvents();
     }
     if (stopping) {
+      _event(BearAnimationEvent.cancelled);
       holding = false;
       progress = .80;
       completed = false;
     }
-    taps = nextTaps;
+    if (_inHold && !holding) {
+      _inHold = false;
+      // Hold start/end are edges and may occur more than once within a run.
+      onEvent?.call(BearAnimationEvent.interactiveHoldEnded);
+    }
     notifyListeners();
   }
 
@@ -832,9 +992,18 @@ class BearPlayback extends ChangeNotifier {
     seconds += delta;
     input = (input + delta / .9).clamp(0, 1);
     _blend = (_blend + delta / .28).clamp(0, 1);
-    walk += (walkTarget - walk) * (1 - math.exp(-delta * 9));
+    final oldWalk = walk;
+    // Walking is accepted after attachment; early drags do not move either
+    // bear out from under the approach/contact choreography.
+    if (progress >= (definition?.inputAt ?? 0)) {
+      walk += (walkTarget - walk) * (1 - math.exp(-delta * 9));
+    }
+    final distance = walk - oldWalk;
+    if (distance.abs() > .0001) travelDirection = distance.sign;
+    stride += distance.abs() / BearMotion.strideLength * math.pi * 2;
     locomotion = ((walkTarget - walk).abs() / 5).clamp(0, 1);
     if (action != null && !completed) {
+      _event(BearAnimationEvent.started);
       final limit = holding ? BearChoreography.holdTime : 1.0;
       // Re-enabling hold during recovery blends back to contact without a jump.
       if (holding && progress > limit) {
@@ -846,14 +1015,24 @@ class BearPlayback extends ChangeNotifier {
         limit,
         progress + delta / (duration.inMicroseconds / 1e6),
       );
-      if (!_contactSent &&
-          progress >= BearChoreography.contactTime &&
-          !stopped) {
+      if (progress >= .43 && !stopped) {
+        _event(BearAnimationEvent.approachComplete);
+      }
+      if (!_contactSent && progress >= definition!.contactAt && !stopped) {
         _contactSent = true;
+        _event(BearAnimationEvent.contactStarted);
         onContact?.call();
+      }
+      if (progress >= definition!.reactionAt && !stopped) {
+        _event(BearAnimationEvent.reactionStarted);
+      }
+      if (holding && progress >= limit && !_inHold) {
+        _inHold = true;
+        onEvent?.call(BearAnimationEvent.interactiveHoldStarted);
       }
       if (progress >= 1) {
         completed = true;
+        _event(BearAnimationEvent.completed);
         onComplete?.call();
       }
     }

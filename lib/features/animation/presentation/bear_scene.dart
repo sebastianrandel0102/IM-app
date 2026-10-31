@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../../../app/theme/app_theme.dart';
 import '../../affection/domain/affection_type.dart';
+import '../domain/gesture_definition.dart';
 import 'bear_choreography.dart';
 import 'bear_vector_rig.dart';
 import 'rive_bear_scene.dart';
@@ -25,6 +26,8 @@ class BearScene extends StatefulWidget {
     this.stopped = false,
     this.onComplete,
     this.onContact,
+    this.onInputReadyChanged,
+    this.onEvent,
   });
   final AffectionType? action;
   final BearCharacter sender;
@@ -34,6 +37,8 @@ class BearScene extends StatefulWidget {
   final double walk;
   final String accessory, variant;
   final VoidCallback? onComplete, onContact;
+  final ValueChanged<bool>? onInputReadyChanged;
+  final ValueChanged<BearAnimationEvent>? onEvent;
   @override
   State<BearScene> createState() => _BearSceneState();
 }
@@ -44,6 +49,7 @@ class _BearSceneState extends State<BearScene>
   late final Ticker _ticker;
   Duration? _lastTick;
   bool _foreground = true;
+  bool? _lastReady;
   bool get _reduced =>
       widget.reducedMotion || MediaQuery.disableAnimationsOf(context);
   bool get _staticPreview => _reduced && widget.onComplete == null;
@@ -57,12 +63,18 @@ class _BearSceneState extends State<BearScene>
       reduced: widget.reducedMotion,
       onComplete: () => widget.onComplete?.call(),
       onContact: () => widget.onContact?.call(),
+      onEvent: (event) => widget.onEvent?.call(event),
     );
     _ticker = createTicker((elapsed) {
       final previous = _lastTick;
       _lastTick = elapsed;
       if (previous != null) {
         _playback.advance((elapsed - previous).inMicroseconds / 1e6);
+      }
+      final ready = _playback.canReact;
+      if (_lastReady != ready) {
+        _lastReady = ready;
+        widget.onInputReadyChanged?.call(ready);
       }
       if ((widget.stopped || _reduced) && _playback.settled) _syncTicker();
     });
@@ -290,13 +302,10 @@ class BearScenePainter extends CustomPainter {
       );
     }
     canvas.save();
-    canvas.translate(200, 185);
-    final spin = action == AffectionType.spinningHug ? frame.spin : 0.0;
-    canvas.rotate(spin);
-    final turn = math.sin(spin / 2).abs();
-    canvas.scale(1 - turn * .18);
-    canvas.translate(-200, -185);
-    if (action == AffectionType.piggybackRide) {
+    final rightBehind =
+        action == AffectionType.piggybackRide ||
+        (action == AffectionType.spinningHug && math.sin(frame.spin) > 0);
+    if (rightBehind) {
       BearVectorRig.draw(canvas, frame.right, sender.other, 'none');
       BearVectorRig.draw(canvas, frame.left, sender, accessory);
     } else {

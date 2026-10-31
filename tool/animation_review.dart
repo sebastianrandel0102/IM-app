@@ -1,5 +1,6 @@
 import 'package:bear_with_me/app/theme/app_theme.dart';
 import 'package:bear_with_me/features/affection/domain/affection_type.dart';
+import 'package:bear_with_me/features/animation/domain/gesture_definition.dart';
 import 'package:bear_with_me/features/animation/presentation/bear_choreography.dart';
 import 'package:bear_with_me/features/animation/presentation/bear_scene.dart';
 import 'package:flutter/material.dart';
@@ -26,10 +27,21 @@ class _AnimationReviewState extends State<AnimationReview>
   double _speed = 1, _walk = 0;
   int _taps = 0;
   bool _playing = true, _hold = false, _reduced = false;
+  String _variant = 'gentle';
+  final _events = <BearAnimationEvent>[];
+  BearPlayback _newPlayback() => BearPlayback(
+    action: _action,
+    reduced: _reduced,
+    variant: _variant,
+    onEvent: (event) {
+      _events.add(event);
+      if (_events.length > 4) _events.removeAt(0);
+    },
+  );
   @override
   void initState() {
     super.initState();
-    _playback = BearPlayback(action: _action);
+    _playback = _newPlayback();
     _ticker = createTicker((elapsed) {
       final before = _last;
       _last = elapsed;
@@ -42,7 +54,7 @@ class _AnimationReviewState extends State<AnimationReview>
 
   void _configure() => _playback.configure(
     nextAction: _action,
-    nextVariant: 'gentle',
+    nextVariant: _variant,
     nextReduced: _reduced,
     nextHolding: _hold,
     nextStopped: false,
@@ -51,7 +63,8 @@ class _AnimationReviewState extends State<AnimationReview>
   );
   void _restart() {
     _playback.dispose();
-    _playback = BearPlayback(action: _action, reduced: _reduced);
+    _playback = _newPlayback();
+    _events.clear();
     _taps = 0;
     _hold = false;
     _walk = 0;
@@ -91,6 +104,17 @@ class _AnimationReviewState extends State<AnimationReview>
                     _restart();
                   }),
                 ),
+                DropdownButton<String>(
+                  value: _variant,
+                  items: [
+                    for (final v in ['gentle', 'shy', 'playful'])
+                      DropdownMenuItem(value: v, child: Text(v)),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _variant = v!;
+                    _restart();
+                  }),
+                ),
                 AspectRatio(
                   aspectRatio: 400 / 340,
                   child: RepaintBoundary(
@@ -105,7 +129,7 @@ class _AnimationReviewState extends State<AnimationReview>
                         walk: _walk,
                         reduced: _reduced,
                         accessory: 'none',
-                        variant: 'gentle',
+                        variant: _variant,
                         stopped: false,
                         playback: _playback,
                       ),
@@ -125,6 +149,10 @@ class _AnimationReviewState extends State<AnimationReview>
                 Text(
                   '${_playback.stage.name} · ${(_playback.progress * _playback.duration.inMilliseconds / 1000).toStringAsFixed(2)} s',
                 ),
+                Text(
+                  _events.map((e) => e.name).join(' → '),
+                  style: const TextStyle(fontSize: 11),
+                ),
                 Wrap(
                   spacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -138,6 +166,14 @@ class _AnimationReviewState extends State<AnimationReview>
                       tooltip: 'Replay',
                       icon: const Icon(Icons.replay),
                       onPressed: () => setState(_restart),
+                    ),
+                    IconButton(
+                      tooltip: 'Advance one frame (60 Hz)',
+                      icon: const Icon(Icons.skip_next),
+                      onPressed: () => setState(() {
+                        _playing = false;
+                        _playback.advance(1 / 60);
+                      }),
                     ),
                     for (final speed in [.25, 1.0])
                       ChoiceChip(
@@ -169,10 +205,12 @@ class _AnimationReviewState extends State<AnimationReview>
                         }),
                       ),
                     OutlinedButton(
-                      onPressed: () => setState(() {
-                        _taps++;
-                        _configure();
-                      }),
+                      onPressed: !_playback.canReact
+                          ? null
+                          : () => setState(() {
+                              _taps++;
+                              _configure();
+                            }),
                       child: const Text('Tap / react'),
                     ),
                   ],

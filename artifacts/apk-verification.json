@@ -1,7 +1,7 @@
 {
   "apk": "app-release.apk",
-  "bytes": 85278539,
-  "sha256": "ad78daf79e7a0dc7a6389a715f6bd05d043b03693d050a2878e6df040ca98714",
+  "bytes": 85294923,
+  "sha256": "86ea5c56f39b1fa28d60876e722aece99fde5c6a46354a7c38f5fcd102beebf9",
   "checks": {
     "arm64_release_code": true,
     "both_actual_uids_packaged": true,

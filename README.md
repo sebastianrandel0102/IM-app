@@ -102,3 +102,12 @@ included. Notes are ordinary private Firestore text, accessible to authorized
 accounts and project administrators, not end-to-end encrypted. Reveal does not
 prove a physical tap. Revocation denies old world access to clients; the project
 owner separately cleans retained server data. See [architecture and privacy](docs/architecture/README.md).
+
+The latest [character refinement audit](docs/animations/REFINEMENT.md) records
+continuous facial transitions, neck/ear pivots, distance-driven foot motion,
+guarded input windows and authored contact events. Editable 1024×1024 bear
+masters are in `artifacts/animations/masters/`; the [artwork handoff](docs/animations/ARTWORK.md)
+explains the remaining reference-image and external mesh work. See the current
+[refinement QA report](docs/animations/REFINEMENT_QA.md) for verification.
+For local frame timings, run `flutter run --profile -t tool/animation_profile.dart -d chrome`
+or replace `chrome` with a connected Android device ID for native acceptance.

@@ -1,5 +1,9 @@
 # Bear animation implementation — 2026-10-31
 
+This records the previous overhaul. The subsequent [refinement audit](REFINEMENT.md)
+and [current QA](REFINEMENT_QA.md) supersede its rig pivots, input timing, spin
+implementation and verification counts.
+
 All 24 catalog IDs, names, categories and delivery meanings are preserved. The
 runtime implementation is editable Flutter vector animation. No Rive artboard,
 mesh, bone weights or binary asset has been edited: none was supplied. The

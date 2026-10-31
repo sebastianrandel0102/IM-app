@@ -1,5 +1,9 @@
 # Animation verification — 2026-10-31 (Asia/Manila)
 
+Historical verification of the previous overhaul. See [REFINEMENT_QA.md](REFINEMENT_QA.md)
+for the subsequent character refinement; the APK hash and 56-test count below
+refer to the earlier build.
+
 ## Results
 
 | Check | Result |

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:bear_with_me/features/affection/domain/affection_type.dart';
 import 'package:bear_with_me/features/animation/presentation/bear_choreography.dart';
 import 'package:bear_with_me/features/animation/presentation/bear_scene.dart';
@@ -223,8 +221,20 @@ void main() {
             variant: variant,
             onComplete: () => completions++,
           );
-          p.advance(1);
-          configure(p, taps: 1);
+          p.advance(
+            p.duration.inMicroseconds / 1e6 * (p.definition!.inputAt + .02),
+          );
+          if (p.definition!.supportsHold) {
+            configure(p, hold: true);
+            p.advance(p.duration.inMicroseconds / 1e6);
+            expect(p.stage, BearStage.hold);
+            expect(completions, 0);
+            configure(p);
+          } else {
+            expect(p.canReact, isTrue, reason: '${action.name} $variant');
+            configure(p, taps: 1);
+            expect(p.taps, 1, reason: '${action.name} $variant');
+          }
           for (var i = 0; i < 180; i++) {
             p.advance(.1);
           }
@@ -257,17 +267,6 @@ void main() {
                 const Offset(-65, 40),
               ]) {
                 var point = p.headPoint(local);
-                if (action == AffectionType.spinningHug) {
-                  final d =
-                      (point - const Offset(200, 185)) *
-                      (1 - math.sin(f.spin / 2).abs() * .18);
-                  point =
-                      const Offset(200, 185) +
-                      Offset(
-                        d.dx * math.cos(f.spin) - d.dy * math.sin(f.spin),
-                        d.dx * math.sin(f.spin) + d.dy * math.cos(f.spin),
-                      );
-                }
                 expect(
                   point.dx,
                   inInclusiveRange(0, 400),
@@ -343,7 +342,7 @@ void main() {
     expect(p.frame.left.lie, resting);
     p.advance(.3);
     expect(p.frame.left.lie, 0);
-    p.advance(4);
+    p.advance(6);
     expect(p.settled, isTrue);
   });
 

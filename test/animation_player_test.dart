@@ -48,12 +48,16 @@ void main() {
     });
   }
 
-  testWidgets('return kiss is debounced and replay clears the reaction', (
+  testWidgets('return kiss waits for the first reaction and is debounced', (
     tester,
   ) async {
     await open(tester, 'cheekKiss');
     final control = find.text('Kiss back');
     await tester.ensureVisible(control);
+    await tester.tap(control);
+    await tester.pump();
+    expect(tester.widget<BearScene>(find.byType(BearScene)).taps, 0);
+    await tester.pump(const Duration(seconds: 6));
     await tester.tap(control);
     await tester.pump();
     await tester.tap(control);
@@ -78,6 +82,24 @@ void main() {
     expect(tester.binding.transientCallbackCount, 0);
   });
 
+  testWidgets('backgrounding releases a held hug before resume', (
+    tester,
+  ) async {
+    await open(tester, 'warmHug');
+    final scene = find.byType(BearScene);
+    await tester.ensureVisible(scene);
+    final pointer = await tester.startGesture(tester.getCenter(scene));
+    await tester.pump(const Duration(milliseconds: 650));
+    expect(tester.widget<BearScene>(scene).holding, isTrue);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    expect(tester.widget<BearScene>(scene).holding, isFalse);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await pointer.cancel();
+    await tester.pumpWidget(const SizedBox());
+    expect(tester.binding.transientCallbackCount, 0);
+  });
+
   testWidgets('sleep swipe wakes the bears and walk buttons stay bounded', (
     tester,
   ) async {
@@ -87,6 +109,7 @@ void main() {
     expect(tester.widget<BearScene>(find.byType(BearScene)).stopped, isTrue);
     await tester.pumpWidget(const SizedBox());
     await open(tester, 'holdingHands');
+    await tester.pump(const Duration(seconds: 5));
     final right = find.byTooltip('Walk right');
     await tester.ensureVisible(right);
     for (var i = 0; i < 8; i++) {

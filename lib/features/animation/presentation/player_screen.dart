@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +13,7 @@ import '../../affection/data/affection_repository.dart';
 import '../../affection/domain/affection_type.dart';
 import '../../affection/domain/models.dart';
 import '../../settings/data/settings_repository.dart';
+import '../domain/gesture_definition.dart';
 import 'bear_scene.dart';
 import 'bear_choreography.dart';
 
@@ -43,7 +45,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   bool _markedComplete = false, _markingComplete = false;
   int _taps = 0, _replay = 0;
   double _walk = 0;
-  DateTime _lastTap = DateTime(2000);
+  bool _inputReady = false;
+  Duration? _lastTap;
   @override
   void initState() {
     super.initState();
@@ -127,12 +130,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
   }
 
   Future<void> _tap() async {
-    if (_holding) return;
-    if (DateTime.now().difference(_lastTap).inMilliseconds < 250) return;
-    _lastTap = DateTime.now();
+    if (_holding || !_inputReady) return;
+    final now = SchedulerBinding.instance.currentSystemFrameTimeStamp;
+    if (_lastTap != null && (now - _lastTap!).inMilliseconds < 250) return;
+    _lastTap = now;
     setState(() {
       _taps++;
       _stopped = false;
+      // Consume readiness synchronously. A second pointer event can arrive
+      // before the scene's next frame publishes its new approach state.
+      if (BearGestureDefinition.of(_payload!.type).repeatFrom != null) {
+        _inputReady = false;
+      }
     });
     final settings = ref.read(settingsProvider);
     if (settings.sound) {
@@ -163,8 +172,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
       _taps = 0;
       _walk = 0;
       _holding = false;
+      _inputReady = false;
     });
-    _lastTap = DateTime(2000);
+    _lastTap = null;
     _audio.stop();
   }
 
@@ -183,7 +193,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed) _audio.stop();
+    if (state != AppLifecycleState.resumed) {
+      _audio.stop();
+      // The platform may cancel the pointer while backgrounded without sending
+      // a long-press end. Do not resume with an unintentionally latched hug.
+      if (_holding) _hold(false);
+    }
   }
 
   @override
@@ -255,10 +270,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                   onLongPressEnd: hug ? (_) => _hold(false) : null,
                   onLongPressCancel: hug ? () => _hold(false) : null,
                   onHorizontalDragUpdate: (d) {
-                    if ([
-                      AffectionType.holdingHands,
-                      AffectionType.piggybackRide,
-                    ].contains(payload.type)) {
+                    if (_inputReady &&
+                        [
+                          AffectionType.holdingHands,
+                          AffectionType.piggybackRide,
+                        ].contains(payload.type)) {
                       setState(
                         () => _walk = (_walk + d.delta.dx * .2).clamp(-25, 25),
                       );
@@ -284,6 +300,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       stopped: _stopped,
                       onComplete: _finish,
                       onContact: _contact,
+                      onInputReadyChanged: (ready) {
+                        if (mounted && ready != _inputReady) {
+                          setState(() => _inputReady = ready);
+                        }
+                      },
                     ),
                   ),
                 ),
@@ -342,7 +363,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       )
                     else
                       OutlinedButton.icon(
-                        onPressed: _tap,
+                        onPressed: _inputReady ? _tap : null,
                         icon: Icon(affectionIcon(payload.type.scene), size: 17),
                         label: Text(switch (payload.type.scene) {
                           'kiss' => 'Kiss back',
@@ -359,14 +380,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen>
                       AffectionType.piggybackRide,
                     ].contains(payload.type)) ...[
                       IconButton(
-                        onPressed: () =>
-                            setState(() => _walk = (_walk - 10).clamp(-25, 25)),
+                        onPressed: !_inputReady
+                            ? null
+                            : () => setState(
+                                () => _walk = (_walk - 10).clamp(-25, 25),
+                              ),
                         tooltip: 'Walk left',
                         icon: const Icon(Icons.arrow_back_rounded),
                       ),
                       IconButton(
-                        onPressed: () =>
-                            setState(() => _walk = (_walk + 10).clamp(-25, 25)),
+                        onPressed: !_inputReady
+                            ? null
+                            : () => setState(
+                                () => _walk = (_walk + 10).clamp(-25, 25),
+                              ),
                         tooltip: 'Walk right',
                         icon: const Icon(Icons.arrow_forward_rounded),
                       ),
