@@ -1,0 +1,104 @@
+{
+  "verifiedOn": "2026-11-01",
+  "timezone": "Asia/Manila",
+  "baseCommit": "4cc02e9",
+  "flutter": "3.47.7",
+  "dart": "3.13.5",
+  "analyzer": "No issues found",
+  "flutterTests": {
+    "passed": 104,
+    "failed": 0,
+    "log": ".tools/touch-verified-tests.log",
+    "secondaryImpulseAndFourHugEndpointRerun": {
+      "passed": 6,
+      "failed": 0,
+      "log": ".tools/touch-secondary-verified.log"
+    },
+    "finalScreenFixtureRerun": {
+      "passed": 1,
+      "failed": 0,
+      "log": ".tools/touch-screens-verified.log"
+    },
+    "finalClassifierRerun": {
+      "passed": 6,
+      "failed": 0,
+      "log": ".tools/touch-classifier-final.log",
+      "includes": "heart outside explicit drawing mode is not misclassified as belly rub; secondary impulses; front and rear hug paw reach"
+    }
+  },
+  "security": {
+    "testsPassed": 41,
+    "testsFailed": 0,
+    "authFirestoreTwoClientIntegration": "passed",
+    "project": "demo-bear-with-me",
+    "rulesDeployedTo": "bear-with-me-f60a3",
+    "productionMessagesSentForTesting": 0
+  },
+  "apk": {
+    "apk": "D:\\VS Files\\IM-app\\build\\app\\outputs\\flutter-apk\\app-release.apk",
+    "bytes": 86278315,
+    "sha256": "d6bdc1632ee8194f8a1d39a2db1a7c9ee7890e02a0a51915de9adb31d54d3371",
+    "checks": {
+      "arm64_release_code": true,
+      "both_existing_member_uids_packaged": true,
+      "correct_firebase_project_packaged": true,
+      "emulator_project_absent": true,
+      "touch_echo_packaged": true,
+      "head_pet_label_packaged": true,
+      "touch_back_label_packaged": true,
+      "bundled_font_present": true,
+      "no_service_account_file": true
+    },
+    "signatureScheme": "v2 verified",
+    "microphonePermission": false,
+    "cameraPermission": false,
+    "locationPermission": false
+  },
+  "webProfile": {
+    "target": "web-profile",
+    "profileMode": true,
+    "completed": [
+      "headPet:brown",
+      "noseBoop:brown",
+      "cheekCaress:brown",
+      "pawHold:brown",
+      "bellyRub:brown",
+      "earRub:brown",
+      "hugHold:brown",
+      "backComfort:brown",
+      "heartTrace:brown",
+      "tinyTickle:brown",
+      "headPet:white",
+      "noseBoop:white",
+      "cheekCaress:white",
+      "pawHold:white",
+      "bellyRub:white",
+      "earRub:white",
+      "hugHold:white",
+      "backComfort:white",
+      "heartTrace:white",
+      "tinyTickle:white"
+    ],
+    "elapsedSeconds": 86.757,
+    "frameTimingSamples": 6316,
+    "buildP95Ms": 2.7,
+    "rasterP95Ms": 2,
+    "totalP95Ms": 5.101,
+    "framesOver16_667Ms": 4,
+    "note": "Observed harness timings only; web is not Android GPU acceptance."
+  },
+  "physicalDevicesAvailable": 0,
+  "nativeFrameTimingVerified": false,
+  "iosBuildVerified": false,
+  "screenshots": {
+    "productionPainting": true,
+    "inboxRevealAndReplyScreensUseRenderingFixtures": true
+  },
+  "limitations": [
+    "Physical two-device touch feel and animation acceptance remain.",
+    "Web timing is not a native 60 FPS guarantee.",
+    "No automatic push sender or new synchronous live touch.",
+    "Inline art references have no local source PNG paths."
+  ],
+  "finalBuildLog": ".tools/touch-release-final.log"
+}

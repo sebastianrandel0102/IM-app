@@ -75,3 +75,74 @@ test('live action roles cannot impersonate the partner or an outsider',async()=>
   await assertFails(updateDoc(doc(db(B),path),{...action,actionSenderUid:A}));
   await assertSucceeds(updateDoc(doc(db(B),path),{...action,actionSenderUid:B}));
 });
+
+const touchDefaults={schemaVersion:1,kind:'headPet',zone:'head',style:'gentle',intensity:.3,durationMs:1800,seed:123,direction:1,repetitions:1,animationId:'touch_headPet',animationVersion:1};
+async function sendTouch(uid=A,id='touch',touch={},payloadOverrides={},metadata={}){
+  const f=db(uid),batch=writeBatch(f),receiver=uid===A?B:A;
+  batch.set(doc(f,moment(id)),{...meta(uid,receiver),kind:'touch_echo',...metadata});
+  batch.set(doc(f,payload(id)),{...body(uid,receiver),interactionType:'headPat',personalMessage:'',touch:{...touchDefaults,...touch},replyToEventId:null,...payloadOverrides});
+  batch.set(doc(f,`couples/${CID}/touchSendLimits/${uid}`),{eventId:id,sentAt:serverTimestamp()});
+  return batch.commit();
+}
+test('Touch Echo head pet is atomic, sealed and reversible; replay preserves opened time',async()=>{
+  await active();await assertSucceeds(sendTouch(A));await assertSucceeds(sendTouch(B,'reverse'));
+  await assertFails(get(B,payload('touch')));await assertSucceeds(get(A,payload('touch')));
+  const envelope=(await get(B,moment('touch'))).data();assert.equal(envelope.kind,'touch_echo');
+  assert.equal(envelope.touch,undefined);assert.equal(envelope.interactionType,undefined);
+  await assertFails(updateDoc(doc(db(A),moment('touch')),{openedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db(B),moment('touch')),{openedAt:serverTimestamp()}));
+  await assertSucceeds(get(B,payload('touch')));
+  const opened=(await get(B,moment('touch'))).data().openedAt;
+  await assertFails(updateDoc(doc(db(B),moment('touch')),{openedAt:serverTimestamp()}));
+  await assertSucceeds(updateDoc(doc(db(B),moment('touch')),{playedAt:serverTimestamp()}));
+  assert.ok((await get(B,moment('touch'))).data().openedAt.isEqual(opened));
+});
+test('Touch Echo rejects anonymous, outsider, forged roles, spoilers and duplicate overwrites',async()=>{
+  await active();await assertFails(sendTouch(X,'outsider'));
+  await assertFails(sendTouch(A,'spoof',{}, {senderUid:B}));
+  await assertFails(sendTouch(A,'wrongReceiver',{}, {receiverUid:A}));
+  await assertFails(sendTouch(A,'wrongbear',{}, {senderBear:'white'}));
+  await assertFails(sendTouch(A,'spoiler',{}, {},{touch:touchDefaults}));
+  await assertSucceeds(sendTouch());
+  await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(),payload('touch'))));
+  await assertFails(sendTouch(A));
+  await assertFails(updateDoc(doc(db(B),payload('touch')),{'touch.intensity':1}));
+  await assertFails(updateDoc(doc(db(A),payload('touch')),{'touch.kind':'noseBoop'}));
+  await assertFails(updateDoc(doc(db(B),moment('touch')),{kind:'warmHug',openedAt:serverTimestamp()}));
+});
+test('Touch payload bounds, enums, schema, zone, adapters and trajectory fields are validated',async()=>{
+  await active();let n=0;
+  for(const bad of [{kind:'talk'},{zone:'nose'},{style:'rough'},{intensity:-1},{intensity:2},
+    {durationMs:6001},{durationMs:350.5},{seed:-1},{repetitions:9},{direction:2},
+    {animationVersion:99},{schemaVersion:2},{animationId:'unknown'},
+    {normalizedTrace:Array(1000).fill({x:0,y:0})}]){
+    await assertFails(sendTouch(A,`bad${n++}`,bad));
+  }
+  await assertFails(sendTouch(A,'adapter',{}, {interactionType:'noseBoop'}));
+  await assertFails(sendTouch(A,'note',{}, {personalMessage:'hidden extra text'}));
+});
+test('Touch Back must reference a completed received Echo in this active pair',async()=>{
+  await active();await sendTouch(A,'original');
+  await assertFails(sendTouch(B,'unopened',{}, {replyToEventId:'original'}));
+  await updateDoc(doc(db(B),moment('original')),{openedAt:serverTimestamp()});
+  await assertFails(sendTouch(B,'unfinished',{}, {replyToEventId:'original'}));
+  await updateDoc(doc(db(B),moment('original')),{playedAt:serverTimestamp()});
+  await assertSucceeds(sendTouch(B,'reply',{}, {replyToEventId:'original'}));
+  await assertFails(sendTouch(A,'ownReply',{}, {replyToEventId:'original'}));
+  await assertFails(sendTouch(A,'missing',{}, {replyToEventId:'missing'}));
+});
+test('Touch Echo rate limit and receiver pause are enforced on the server',async()=>{
+  await active();await sendTouch();await assertFails(sendTouch(A,'tooFast'));
+  await assertSucceeds(setDoc(doc(db(B),`couples/${CID}/touchPreferences/${B}`),{receiveTouches:false}));
+  await seed({[`couples/${CID}/touchSendLimits/${A}`]:{eventId:'touch',sentAt:Timestamp.fromMillis(Date.now()-3000)}});
+  await assertFails(sendTouch(A,'blocked'));
+  await assertFails(setDoc(doc(db(A),`couples/${CID}/touchPreferences/${B}`),{receiveTouches:true}));
+  await assertSucceeds(setDoc(doc(db(B),`couples/${CID}/touchPreferences/${B}`),{receiveTouches:true}));
+  await assertSucceeds(sendTouch(A,'resumed'));
+});
+test('revocation denies Touch Echo payload, pending sends and preference writes',async()=>{
+  await active();await sendTouch();await updateDoc(doc(db(B),moment('touch')),{openedAt:serverTimestamp()});
+  await updateDoc(doc(db(A),pairPath),{status:'revoked'});
+  await assertFails(get(A,moment('touch')));await assertFails(get(B,payload('touch')));
+  await assertFails(sendTouch(B,'after'));await assertFails(setDoc(doc(db(B),`couples/${CID}/touchPreferences/${B}`),{receiveTouches:true}));
+});

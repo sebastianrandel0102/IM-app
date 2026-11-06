@@ -1,0 +1,16 @@
+﻿{
+    "apk":  "D:\\VS Files\\IM-app\\build\\app\\outputs\\flutter-apk\\app-release.apk",
+    "bytes":  86278315,
+    "sha256":  "d6bdc1632ee8194f8a1d39a2db1a7c9ee7890e02a0a51915de9adb31d54d3371",
+    "checks":  {
+                   "arm64_release_code":  true,
+                   "both_existing_member_uids_packaged":  true,
+                   "correct_firebase_project_packaged":  true,
+                   "emulator_project_absent":  true,
+                   "touch_echo_packaged":  true,
+                   "head_pet_label_packaged":  true,
+                   "touch_back_label_packaged":  true,
+                   "bundled_font_present":  true,
+                   "no_service_account_file":  true
+               }
+}

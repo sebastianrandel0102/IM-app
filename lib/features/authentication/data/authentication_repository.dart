@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthenticationRepository {
   AuthenticationRepository(this.auth, this.db);
@@ -44,7 +45,19 @@ class AuthenticationRepository {
     }
   }
 
-  Future<void> logout() => auth.signOut();
+  Future<void> logout() async {
+    final uid = auth.currentUser?.uid;
+    await auth.signOut();
+    if (uid != null) {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in prefs.getKeys().where(
+        (k) => k.startsWith('touch_outbox_${uid}_'),
+      )) {
+        await prefs.remove(key);
+      }
+    }
+  }
+
   Future<void> reauthenticate(String password) async {
     final user = auth.currentUser!;
     await user.reauthenticateWithCredential(

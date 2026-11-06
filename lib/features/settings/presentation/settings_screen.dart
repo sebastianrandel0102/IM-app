@@ -11,6 +11,7 @@ import '../../../core/widgets/components.dart';
 import '../../affection/domain/affection_type.dart';
 import '../../authentication/data/authentication_repository.dart';
 import '../../home/presentation/home_screen.dart';
+import '../../touch_echo/data/touch_echo_repository.dart';
 import '../data/settings_repository.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -61,11 +62,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ) ??
       false;
-  Future<void> _clearDrafts() async {
+  Future<void> _clearDrafts({bool cancelTouch = true}) async {
+    if (cancelTouch) {
+      await ref.read(touchEchoRepositoryProvider)?.discard();
+    }
     final uid = ref.read(authProvider).value?.uid;
     final prefs = await SharedPreferences.getInstance();
     for (final key in prefs.getKeys().where(
-      (k) => k.startsWith('draft:$uid:'),
+      (k) =>
+          k.startsWith('draft:$uid:') || k.startsWith('touch_outbox_${uid}_'),
     )) {
       await prefs.remove(key);
     }
@@ -302,6 +307,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onChanged: (v) =>
                             controller.update(settings.copyWith(haptics: v)),
                       ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Touch Echo haptic strength',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            Slider(
+                              value: settings.touchHapticStrength,
+                              min: 0,
+                              max: 1,
+                              divisions: 4,
+                              label: settings.touchHapticStrength < .5
+                                  ? 'Soft'
+                                  : 'Light',
+                              onChanged: settings.haptics
+                                  ? (v) => controller.update(
+                                      settings.copyWith(touchHapticStrength: v),
+                                    )
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
                       SwitchListTile(
                         title: const Text('A quieter kind of motion'),
                         subtitle: const Text(
@@ -471,7 +502,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         onTap: _busy
                             ? null
                             : () => _run(() async {
-                                await _clearDrafts();
+                                await _clearDrafts(cancelTouch: false);
                                 await ref.read(authRepositoryProvider).logout();
                               }),
                       ),
@@ -510,7 +541,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         .read(pairingRepositoryProvider)
                                         .revoke();
                                   }
-                                  await _clearDrafts();
+                                  await _clearDrafts(cancelTouch: false);
                                   await FirebaseFirestore.instance
                                       .collection('users')
                                       .doc(user!.uid)

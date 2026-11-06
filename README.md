@@ -35,7 +35,9 @@ Node, a service account, or privileged credentials. See [Firebase setup](docs/se
 - Fixed two-account membership, 256-bit invitations, separate confirmations.
 - Shared illustrated world, complementary bears, local themes and accessories.
 - Searchable 24-gesture catalog, optional notes and account-scoped local drafts.
-- Atomic real delivery with stable request IDs and no automatic offline queue.
+- Atomic legacy gesture delivery with stable request IDs and explicit online retry.
+- Touch Echo: ten interpreted finger touches, articulated local reactions,
+  paired contact previews, durable pending delivery, sealed reveal and Touch Back.
 - Real-time sealed inbox, outgoing history, explicit server-authorized reveal.
 - Interactive hold/release, tap and bounded swipe, accessible alternatives,
   replay, optional original sound, haptics and reduced motion.
@@ -68,7 +70,7 @@ using the portable Node and Android Studio JDK without a global npm install.
 
 The Flutter suite checks mobile/desktop layouts, private routes, hug controls,
 invitation entropy and preferences, and exports visual previews to `artifacts/`.
-34 Firestore rules tests exercise allowed and denied operations. A separate
+41 Firestore rules tests exercise allowed and denied operations. A separate
 two-client integration checks real emulator Auth registration, pairing, live
 delivery in both directions, sealed reads, reveal and memory persistence.
 Emulator tests use `demo-bear-with-me`, never live project data. Physical
@@ -96,6 +98,12 @@ domain and presentation concerns. `firebase` contains rules, indexes and
 security/integration tests. `assets` bundles the font, original audio and Rive
 handoff marker. `scripts`, `test`, `tool` and `docs` contain setup, checks,
 vector icon export and handoff documentation.
+
+Touch Echo implementation, rig/anchor map, ten recognizers, security deployment,
+offline behavior, screenshots and two-device acceptance are documented in
+[the Touch Echo handoff](docs/touch_echo/HANDOFF.md). Open Touch Echo from Home,
+or `/studio/touch` for a clearly labeled local preview without delivery. The
+latest signed Android build is `build/app/outputs/flutter-apk/app-release.apk`.
 
 No Cloud Functions, Firebase Storage, paid backend or automatic FCM sender is
 included. Notes are ordinary private Firestore text, accessible to authorized

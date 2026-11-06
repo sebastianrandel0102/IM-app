@@ -44,6 +44,14 @@ enum BearAnchor {
   headRest,
   leftFoot,
   rightFoot,
+  headTop,
+  leftEar,
+  rightEar,
+  chest,
+  belly,
+  muzzle,
+  armNear,
+  armFar,
 }
 
 /// The vector rig's coordinates, also used by contact constraints and QA.
@@ -56,6 +64,7 @@ class BearPose {
   // Replacement silhouettes, independent of whole-character rotation.
   double recline = 0, embrace = 0, backView = 0, armTurn = 1;
   double shoulderDrop = 36;
+  double shoulderLift = 0, leftEarBend = 0, rightEarBend = 0;
   double eyes = 1, gaze = 0, smile = 1, blush = .15, surprise = 0;
   double ear = 0, breath = 0, cheek = 0, turn = 0;
   double mouthOpen = 0, pucker = 0, happyEyes = 0;
@@ -104,7 +113,10 @@ class BearPose {
     BearAnchor.leftPaw => nearTarget ?? bodyPoint(nearPaw),
     BearAnchor.rightPaw => farTarget ?? bodyPoint(farPaw),
     BearAnchor.shoulder => bodyPoint(
-      Offset(23 * armTurn, -80 + recline * 38 + embrace * shoulderDrop),
+      Offset(
+        23 * armTurn,
+        -80 + recline * 38 + embrace * shoulderDrop + shoulderLift,
+      ),
     ),
     BearAnchor.rightShoulder => bodyPoint(
       Offset(-23 * armTurn, -80 + recline * 38 + embrace * 12),
@@ -116,7 +128,25 @@ class BearPose {
     BearAnchor.headRest => headPoint(const Offset(63, 24)),
     BearAnchor.leftFoot => bodyPoint(footPoint(-1)),
     BearAnchor.rightFoot => bodyPoint(footPoint(1)),
+    BearAnchor.headTop => headPoint(const Offset(0, -57)),
+    BearAnchor.leftEar => earPoint(true),
+    BearAnchor.rightEar => earPoint(false),
+    BearAnchor.chest => bodyPoint(const Offset(0, -65)),
+    BearAnchor.belly => bodyPoint(const Offset(0, -40)),
+    BearAnchor.muzzle => headPoint(Offset(9 + turn * 43, 31)),
+    BearAnchor.armNear => anchor(BearAnchor.shoulder),
+    BearAnchor.armFar => anchor(BearAnchor.rightShoulder),
   };
+
+  Offset earPoint(bool left) {
+    final angle = (left ? -ear : ear) + (left ? leftEarBend : rightEarBend);
+    return headPoint(
+      Offset(
+        (left ? -36.5 : 42.5) + 29 * math.sin(angle),
+        -20 - 29 * math.cos(angle),
+      ),
+    );
+  }
 
   Offset footPoint(int side) => Offset(
     side * (16 + sit * 7) * (1 - recline) +
@@ -170,6 +200,9 @@ class BearPose {
       ..backView = mix(a.backView, b.backView)
       ..armTurn = mix(a.armTurn, b.armTurn)
       ..shoulderDrop = mix(a.shoulderDrop, b.shoulderDrop)
+      ..shoulderLift = mix(a.shoulderLift, b.shoulderLift)
+      ..leftEarBend = mix(a.leftEarBend, b.leftEarBend)
+      ..rightEarBend = mix(a.rightEarBend, b.rightEarBend)
       ..step = mix(a.step, b.step)
       ..eyes = mix(a.eyes, b.eyes)
       ..gaze = mix(a.gaze, b.gaze)

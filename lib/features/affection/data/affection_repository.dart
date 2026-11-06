@@ -172,7 +172,7 @@ class MemoryRepository {
       tx.set(ref, {
         'momentId': payload.momentId,
         'savedByUid': affection.uid,
-        'caption': payload.type.title,
+        'caption': payload.title,
         'favorite': false,
         'createdAt': FieldValue.serverTimestamp(),
       });

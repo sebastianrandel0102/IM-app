@@ -14,6 +14,8 @@ import '../features/animation/presentation/player_screen.dart';
 import '../features/affection/domain/models.dart';
 import '../features/together/presentation/together_screen.dart';
 import '../core/widgets/app_shell.dart';
+import '../features/touch_echo/presentation/touch_mode_screen.dart';
+import '../features/touch_echo/data/touch_echo_repository.dart';
 import 'configuration/bootstrap.dart';
 import 'theme/app_theme.dart';
 
@@ -107,6 +109,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, _) => const SettingsScreen(customizeOnly: true),
       ),
       GoRoute(path: '/together', builder: (_, _) => const TogetherScreen()),
+      GoRoute(
+        path: '/touch',
+        builder: (_, state) =>
+            TouchModeScreen(replyTo: state.uri.queryParameters['replyTo']),
+      ),
+      GoRoute(
+        path: '/studio/touch',
+        builder: (_, _) => const TouchModeScreen(studio: true),
+      ),
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(path: state.uri.path, studio: true, child: child),
@@ -167,10 +178,14 @@ final routerProvider = Provider<GoRouter>((ref) {
 class BearWithMeApp extends ConsumerWidget {
   const BearWithMeApp({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    debugShowCheckedModeBanner: false,
-    title: 'Bear With Me',
-    theme: buildTheme(),
-    routerConfig: ref.watch(routerProvider),
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Restore only the currently authenticated pair's explicitly queued touch.
+    ref.watch(touchEchoRepositoryProvider);
+    return MaterialApp.router(
+      debugShowCheckedModeBanner: false,
+      title: 'Bear With Me',
+      theme: buildTheme(),
+      routerConfig: ref.watch(routerProvider),
+    );
+  }
 }

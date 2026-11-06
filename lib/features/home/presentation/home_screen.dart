@@ -73,6 +73,14 @@ class HomeScreen extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
+        Center(
+          child: FilledButton.icon(
+            onPressed: () => context.push(studio ? '/studio/touch' : '/touch'),
+            icon: const Icon(Icons.touch_app_outlined),
+            label: const Text('Touch Echo · Send your actual touch'),
+          ),
+        ),
+        const SizedBox(height: 12),
         const Center(
           child: Text(
             'Tap a nose, stroke a head, or hold a paw.',

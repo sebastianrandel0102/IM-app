@@ -18,7 +18,8 @@ enum BearReaction {
 /// Frequency is angular frequency (radians/second), not cycles/second.
 class BearSpring {
   BearSpring({this.frequency = 13, this.damping = .85, this.limit = 1});
-  final double frequency, damping, limit;
+  final double frequency, limit;
+  double damping;
   double position = 0, velocity = 0, target = 0;
 
   void step(double dt) {

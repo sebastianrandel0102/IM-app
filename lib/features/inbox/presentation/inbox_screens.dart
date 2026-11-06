@@ -206,7 +206,9 @@ class _InboxScreenState extends ConsumerState<InboxScreen> {
                                 _outgoing
                                     ? 'Revisit your moment  ›'
                                     : moment.openedAt == null
-                                    ? 'Open surprise  ›'
+                                    ? (moment.touchEcho
+                                          ? 'Open Touch Echo'
+                                          : 'Open surprise  ›')
                                     : 'Replay this moment  ›',
                                 style: const TextStyle(
                                   fontSize: 12,

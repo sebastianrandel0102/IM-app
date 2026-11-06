@@ -108,7 +108,8 @@ service cloud.firestore {
       allow delete: if false;
       function validMoment(d) {
         return d.keys().hasAll(['senderUid','receiverUid','createdAt','openedAt','playedAt','genericLabel'])
-          && d.keys().hasOnly(['senderUid','receiverUid','createdAt','openedAt','playedAt','genericLabel'])
+          && d.keys().hasOnly(['senderUid','receiverUid','createdAt','openedAt','playedAt','genericLabel','kind'])
+          && (!('kind' in d) || d.kind == 'touch_echo')
           && d.senderUid == request.auth.uid && d.receiverUid == other(request.auth.uid)
           && d.createdAt == request.time && d.openedAt == null && d.playedAt == null && d.genericLabel == 'A little surprise arrived.';
       }
@@ -117,7 +118,8 @@ service cloud.firestore {
         allow list: if active(cid) && request.query.limit != null && request.query.limit <= 30;
         allow create: if active(cid) && validMoment(request.resource.data)
           && getAfter(payloadPath(cid,id)).data.senderUid == request.auth.uid
-          && getAfter(payloadPath(cid,id)).data.receiverUid == other(request.auth.uid);
+          && getAfter(payloadPath(cid,id)).data.receiverUid == other(request.auth.uid)
+          && (('kind' in request.resource.data) == ('touch' in getAfter(payloadPath(cid,id)).data));
         allow update: if active(cid) && request.auth.uid == resource.data.receiverUid && (
           (resource.data.openedAt == null && request.resource.data.openedAt == request.time
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['openedAt']))
@@ -127,11 +129,44 @@ service cloud.firestore {
       }
       function validPayload(d) {
         return d.keys().hasAll(['senderUid','receiverUid','interactionType','animationVariant','personalMessage','senderBear','receiverBear','assetVersion'])
-          && d.keys().hasOnly(['senderUid','receiverUid','interactionType','animationVariant','personalMessage','senderBear','receiverBear','assetVersion'])
+          && d.keys().hasOnly(['senderUid','receiverUid','interactionType','animationVariant','personalMessage','senderBear','receiverBear','assetVersion','touch','replyToEventId'])
           && d.senderUid == request.auth.uid && d.receiverUid == other(request.auth.uid)
           && d.interactionType in ['warmHug','cheekKiss','foreheadKiss','holdingHands','headPat','noseBoop','cuddleTime','goodnightKiss','sleepTogether','blowingKisses','flowerSurprise','comfortHug','wipeAwayTears','happyDance','piggybackRide','playfulTickle','iMissYou','heartDelivery','goodMorning','surpriseBox','highFive','spinningHug','shyConfession','underOneUmbrella']
           && d.animationVariant in ['gentle','shy','playful'] && d.personalMessage is string && d.personalMessage.size() <= 500
-          && d.senderBear == bearFor(request.auth.uid) && d.receiverBear == bearFor(other(request.auth.uid)) && d.assetVersion == 1;
+          && d.senderBear == bearFor(request.auth.uid) && d.receiverBear == bearFor(other(request.auth.uid)) && d.assetVersion == 1
+          && (('touch' in d && validTouch(d.touch) && validTouchAdapter(d)
+              && d.personalMessage == '' && 'replyToEventId' in d && validReply(d.replyToEventId))
+            || (!('touch' in d) && !('replyToEventId' in d)));
+      }
+      function validTouch(t) {
+        return t is map && t.keys().hasAll(['schemaVersion','kind','zone','style','intensity','durationMs','seed','direction','repetitions','animationId','animationVersion'])
+          && t.keys().hasOnly(['schemaVersion','kind','zone','style','intensity','durationMs','seed','direction','repetitions','animationId','animationVersion'])
+          && t.schemaVersion == 1 && t.animationVersion == 1
+          && t.kind in ['headPet','noseBoop','cheekCaress','pawHold','bellyRub','earRub','hugHold','backComfort','heartTrace','tinyTickle']
+          && t.animationId == 'touch_' + t.kind
+          && t.style in ['gentle','normal','playful'] && t.intensity is number && t.intensity >= 0.15 && t.intensity <= 1
+          && t.durationMs is int && t.durationMs >= 350 && t.durationMs <= 6000
+          && t.seed is int && t.seed >= 0 && t.seed <= 2147483647
+          && t.direction is number && t.direction >= -1 && t.direction <= 1
+          && t.repetitions is int && t.repetitions >= 1 && t.repetitions <= 3
+          && t.zone == (t.kind == 'headPet' ? 'head' : t.kind == 'noseBoop' ? 'nose' : t.kind == 'cheekCaress' ? 'cheek' : t.kind == 'pawHold' ? 'paw' : t.kind in ['bellyRub','tinyTickle'] ? 'belly' : t.kind == 'earRub' ? 'ear' : t.kind == 'hugHold' ? 'chest' : t.kind == 'backComfort' ? 'back' : 'heart');
+      }
+      function validTouchAdapter(d) {
+        return d.interactionType == (d.touch.kind in ['headPet','earRub'] ? 'headPat' : d.touch.kind == 'noseBoop' ? 'noseBoop' : d.touch.kind == 'cheekCaress' ? 'cheekKiss' : d.touch.kind == 'pawHold' ? 'holdingHands' : d.touch.kind in ['bellyRub','tinyTickle'] ? 'playfulTickle' : d.touch.kind == 'hugHold' ? 'warmHug' : d.touch.kind == 'backComfort' ? 'comfortHug' : 'heartDelivery')
+          && d.animationVariant == (d.touch.style == 'playful' ? 'playful' : 'gentle');
+      }
+      function validReply(id) {
+        return id == null || (id is string && id.size() > 0 && id.size() <= 100
+          && get(momentPath(cid,id)).data.kind == 'touch_echo'
+          && get(momentPath(cid,id)).data.receiverUid == request.auth.uid
+          && get(momentPath(cid,id)).data.senderUid == other(request.auth.uid)
+          && get(momentPath(cid,id)).data.openedAt != null && get(momentPath(cid,id)).data.playedAt != null);
+      }
+      function touchAllowed(id) {
+        let preferences = /databases/$(database)/documents/couples/$(cid)/touchPreferences/$(other(request.auth.uid));
+        let rate = /databases/$(database)/documents/couples/$(cid)/touchSendLimits/$(request.auth.uid);
+        return (!exists(preferences) || get(preferences).data.receiveTouches == true)
+          && getAfter(rate).data.eventId == id && getAfter(rate).data.sentAt == request.time;
       }
       match /payloads/{id} {
         allow get: if active(cid) && (resource.data.senderUid == request.auth.uid
@@ -140,8 +175,33 @@ service cloud.firestore {
         allow create: if active(cid) && validPayload(request.resource.data)
           && getAfter(momentPath(cid,id)).data.senderUid == request.auth.uid
           && getAfter(momentPath(cid,id)).data.receiverUid == other(request.auth.uid)
-          && getAfter(momentPath(cid,id)).data.createdAt == request.time;
+          && getAfter(momentPath(cid,id)).data.createdAt == request.time
+          && (!('touch' in request.resource.data) || touchAllowed(id));
         allow update, delete: if false;
+      }
+      match /touchPreferences/{uid} {
+        allow get: if active(cid) && uid in [request.auth.uid, other(request.auth.uid)];
+        allow list: if false;
+        allow create, update: if active(cid) && uid == request.auth.uid
+          && request.resource.data.keys().hasAll(['receiveTouches'])
+          && request.resource.data.keys().hasOnly(['receiveTouches'])
+          && request.resource.data.receiveTouches is bool;
+        allow delete: if false;
+      }
+      match /touchSendLimits/{uid} {
+        allow get: if active(cid) && uid == request.auth.uid;
+        allow list: if false;
+        allow create, update: if active(cid) && uid == request.auth.uid
+          && request.resource.data.keys().hasAll(['eventId','sentAt'])
+          && request.resource.data.keys().hasOnly(['eventId','sentAt'])
+          && request.resource.data.eventId is string && request.resource.data.eventId.size() <= 100
+          && request.resource.data.sentAt == request.time
+          && (!exists(/databases/$(database)/documents/couples/$(cid)/touchSendLimits/$(uid))
+            || request.time >= resource.data.sentAt + duration.value(2,'s'))
+          && getAfter(momentPath(cid,request.resource.data.eventId)).data.createdAt == request.time
+          && getAfter(momentPath(cid,request.resource.data.eventId)).data.kind == 'touch_echo'
+          && getAfter(momentPath(cid,request.resource.data.eventId)).data.senderUid == uid;
+        allow delete: if false;
       }
       function eligibleMemory(mid) {
         let m = get(momentPath(cid,mid)).data;

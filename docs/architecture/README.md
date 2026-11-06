@@ -86,7 +86,12 @@ User-requested local composition drafts are the one intentionally persisted
 private item. SharedPreferences keys include the account UID and interaction
 type, and drafts are removed on successful sending, logout or local-data clear.
 They are ordinary app-private local storage, not encrypted archival storage.
-Automatic queued sending is not implemented. Authentication data is managed by
+Legacy gesture delivery does not queue automatically. Touch Echo persists only
+explicitly submitted semantic touches with stable IDs scoped to the authenticated
+UID and active invitation. It retries while that same session is authorized,
+shows Pending until server acknowledgment, and stops on revocation or permanent
+failure. See [Touch Echo](../touch_echo/HANDOFF.md) for its schema, three-document
+atomic creation and authorization tests. Authentication data is managed by
 the Firebase SDK, independently of these noncredential preferences.
 
 ## Quotas and queries

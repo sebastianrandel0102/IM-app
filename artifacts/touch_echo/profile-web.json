@@ -1,0 +1,33 @@
+{
+  "target": "web-profile",
+  "profileMode": true,
+  "completed": [
+    "headPet:brown",
+    "noseBoop:brown",
+    "cheekCaress:brown",
+    "pawHold:brown",
+    "bellyRub:brown",
+    "earRub:brown",
+    "hugHold:brown",
+    "backComfort:brown",
+    "heartTrace:brown",
+    "tinyTickle:brown",
+    "headPet:white",
+    "noseBoop:white",
+    "cheekCaress:white",
+    "pawHold:white",
+    "bellyRub:white",
+    "earRub:white",
+    "hugHold:white",
+    "backComfort:white",
+    "heartTrace:white",
+    "tinyTickle:white"
+  ],
+  "elapsedSeconds": 86.757,
+  "frameTimingSamples": 6316,
+  "buildP95Ms": 2.7,
+  "rasterP95Ms": 2,
+  "totalP95Ms": 5.101,
+  "framesOver16_667Ms": 4,
+  "note": "Observed harness timings only; web is not Android GPU acceptance."
+}

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'affection_type.dart';
+import '../../touch_echo/domain/touch_intent.dart';
 
 typedef Json = Map<String, dynamic>;
 DateTime? dateOf(Object? value) => value is Timestamp ? value.toDate() : null;
@@ -89,9 +90,11 @@ class AffectionMoment {
     this.createdAt,
     this.openedAt,
     this.playedAt,
+    this.touchEcho = false,
   });
   final String id, senderUid, receiverUid;
   final DateTime? createdAt, openedAt, playedAt;
+  final bool touchEcho;
   factory AffectionMoment.fromDoc(DocumentSnapshot<Json> doc) {
     final d = doc.data()!;
     return AffectionMoment(
@@ -101,6 +104,7 @@ class AffectionMoment {
       createdAt: dateOf(d['createdAt']),
       openedAt: dateOf(d['openedAt']),
       playedAt: dateOf(d['playedAt']),
+      touchEcho: d['kind'] == 'touch_echo',
     );
   }
 }
@@ -113,10 +117,15 @@ class ProtectedMomentPayload {
     required this.personalMessage,
     required this.senderBear,
     required this.receiverBear,
+    this.touch,
+    this.replyToEventId,
   });
   final String momentId, variant, personalMessage;
   final AffectionType type;
   final BearCharacter senderBear, receiverBear;
+  final TouchIntent? touch;
+  final String? replyToEventId;
+  String get title => touch?.kind.title ?? type.title;
   factory ProtectedMomentPayload.fromDoc(DocumentSnapshot<Json> doc) {
     final d = doc.data()!;
     if (d['assetVersion'] != 1) {
@@ -138,6 +147,10 @@ class ProtectedMomentPayload {
       personalMessage: stringOf(d, 'personalMessage', max: 500),
       senderBear: sender,
       receiverBear: receiver,
+      touch: d['touch'] is Map
+          ? TouchIntent.fromJson(Map<String, dynamic>.from(d['touch'] as Map))
+          : null,
+      replyToEventId: d['replyToEventId'] as String?,
     );
   }
 }

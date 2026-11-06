@@ -108,7 +108,7 @@ class BearVectorRig {
         c.save();
         c.translate(side == -1 ? -36.5 : 42.5, -38);
         c.translate(0, 18);
-        c.rotate(side * p.ear);
+        c.rotate(side * p.ear + (side == -1 ? p.leftEarBend : p.rightEarBend));
         c.translate(0, -18);
         oval(c, const Rect.fromLTWH(-21.5, -24, 43, 48), color, outline: true);
         c.restore();
@@ -123,7 +123,9 @@ class BearVectorRig {
         c.save();
         final markX = 43 * p.facing;
         c.translate(markX, -39);
-        c.rotate(p.ear * p.facing);
+        c.rotate(
+          p.ear * p.facing + (p.facing == 1 ? p.rightEarBend : p.leftEarBend),
+        );
         final mark = BearArtwork.earMark(0, 0).path;
         c.drawPath(mark, fill(inner));
         c.drawPath(
